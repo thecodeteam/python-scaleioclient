@@ -914,6 +914,30 @@ class ScaleIO(object):
         # map
         self._map_volume(volume_id)
 
+    def rename_volume(self, volume_id, new_volume_name):
+        """
+        Rename an existing volume
+        :param volume_id: If of volume to remove
+        :param new_volume_name: New volume name
+        :return: Nothing
+        """
+        if not is_id(volume_id):
+            volume_id = self.get_volumeid(volume_name=volume_id)
+            LOG.warn("SIOLIB -> Parameter is not a valid ID retrieving ID for rename_volume. Found %s" % volume_id)
+
+        params = {'newName': new_volume_name}
+
+        LOG.debug("SIOLIB -> rename volume params=%r" % params)
+        r_uri = "/api/instances/Volume::" + volume_id + "/action/setVolumeName"
+        # make HTTP RESTful API request to ScaleIO gw
+        req = api_request(op=HttpAction.POST, host=self.host_addr,
+                          uri=r_uri, data=params, auth=self.auth,
+                          token=self.server_authtoken)
+        if req.status_code == 200:  # success
+            LOG.info("SIOLIB -> Renamed volume %s successfully" % volume_id)
+        else:
+            LOG.error("SIOLIB -> Error renaming volume: %s" % (req.json().get('message')))
+
     def volume(self, volume_id):
         """
         Return a ScaleIOVolume object
