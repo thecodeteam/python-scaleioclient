@@ -35,7 +35,7 @@ __copyright__ = (
     "Copyright © %(_copyright_year_range)s"
     " %(__company__)s") % vars()
 
-from oslo_config import cfg
+from oslo.config import cfg
 
 # ScaleIO volume provision type constant
 VOL_TYPE = {"thickprovisioned": "ThickProvisioned", "thinprovisioned": "ThinProvisioned"}

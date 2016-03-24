@@ -25,7 +25,7 @@ from siolib.httphelper import HttpAction, request, basicauth, Token
 from time import time
 import subprocess
 import re
-import oslo_config
+import oslo.config
 
 try:
     from oslo_log import log as logging
