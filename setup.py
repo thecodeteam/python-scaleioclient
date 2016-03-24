@@ -46,8 +46,9 @@ setup(
         "Intended Audience :: Developers",],
     install_requires=[
         'oslo.config',
+        'oslo.log',
         'requests',
-        'enum',
+        'enum34',
     ],
     scripts=glob("tests/functional/*"),
 )
