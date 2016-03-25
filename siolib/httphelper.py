@@ -94,10 +94,6 @@ def request(op, addr, uri, data=None, headers=None, auth=None):
     u_prefix = 'https://'  # default to secure https
     headers = headers or {'Content-Type': 'application/json'}
 
-    # if port is 443, 445 use https else http
-    if addr[1] not in ('443', '445'):
-        u_prefix = 'http://'
-
     # enum34 handles things differently than enum0.4.4
     op_value = eval_compat(op)
 
