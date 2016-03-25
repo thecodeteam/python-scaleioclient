@@ -22,7 +22,7 @@ from os.path import join as path_join
 from functools import wraps
 from requests.auth import HTTPBasicAuth
 from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.poolmanager import PoolManager
+from urllib3.poolmanager import PoolManager
 from time import time
 from datetime import datetime, timedelta
 from siolib.utilities import eval_compat
