@@ -27,12 +27,8 @@ import subprocess
 import re
 import oslo.config
 
-try:
-    from oslo_log import log as logging
-    LOG = logging.getLogger(__name__)
-except:
-    import logging
-    LOG = logging.getLogger(__name__)
+import logging
+LOG = logging.getLogger(__name__)
 
 # Oslo conf object
 CONF = ConfigOpts()
