@@ -160,7 +160,7 @@ def api_request(**kwargs):
 
     elapsed = time() - start_time
     # FIXME: set to debug after deployed and tested in a dev environment
-    LOG.info("SIOLIB: (api_request) Response Code == {0}, elapsed=={1}".format(req.status_code, elapsed))
+    LOG.debug("SIOLIB: (api_request) Response Code == {0}, elapsed=={1}".format(req.status_code, elapsed))
 
     return req
 
@@ -189,7 +189,7 @@ class _ScaleIOSDC(object):
                     stdout, stderr = proc.communicate()
                     self.guid = stdout.strip()  # set sdc guid property
                 except Exception, err:
-                    LOG.error("SIOLIB --> Subprocess error {0} - {1}".format(stderr, err))
+                    LOG.warning("SIOLIB --> Subprocess error " + str(err))
             else:
                 raise RuntimeError("Cannot locate SDC")
         else:
@@ -345,11 +345,9 @@ class _ScaleIOVolume(object):
                 for dev in devices:
                     if (dev.startswith("emc-vol") and dev.endswith(self.id)):
                         disk_device = dev
-                if not disk_device:
-                    tries = tries + 1
-                    sleep(3)
-            else:
-                break
+            if not disk_device:
+                tries = tries + 1
+                sleep(3)
 
         if disk_device:
             LOG.info("SIOLIB --> ScaleIO device path found {0}".format(disk_device))

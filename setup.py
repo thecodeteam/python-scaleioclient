@@ -47,6 +47,7 @@ setup(
     install_requires=[
         'oslo.config<=1.6.0,>=1.4.0',
         'requests>=2.1.0,!=2.4.0,<=2.2.1',
+        'urllib3>=1.8.3,<1.11',
         'enum34',
     ],
     scripts=glob("tests/functional/*"),
