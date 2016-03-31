@@ -126,6 +126,7 @@ def b64encode_volume(func):
     # return outer wrapper
     return encode
 
+
 @basicauth
 def api_request(**kwargs):
     """
@@ -164,13 +165,13 @@ def api_request(**kwargs):
 
     return req
 
+
 class _ScaleIOSDC(object):
 
     """
      Private class that represents a ScaleIO SDC client object.
     """
     _guid = None
-    _binary_path = None
 
     def __init__(self, host_addr, auth, sdc_uuid=None):
         """
@@ -181,38 +182,10 @@ class _ScaleIOSDC(object):
 
         # locate the local SDC binary and query the local guid
         if not sdc_uuid:
-            self._find_sdc_binary()  # get SDC binary
-            if self.binpath:
-                try:
-                    proc = subprocess.Popen(
-                        [self.binpath, '--query_guid'], stdout=subprocess.PIPE, close_fds=True)
-                    stdout, stderr = proc.communicate()
-                    self.guid = stdout.strip()  # set sdc guid property
-                except Exception, err:
-                    LOG.warning("SIOLIB --> Subprocess error " + str(err))
-            else:
-                raise RuntimeError("Cannot locate SDC")
-        else:
-            self.guid = sdc_uuid.strip()
+            raise RuntimeError("Cannot locate SDC")
 
+        self.guid = sdc_uuid.strip()
         self._set_properties(host_addr=host_addr, auth=auth)
-
-    def _find_sdc_binary(self):
-        """
-        Locate the ScaleIO client executable. This executable is run by the following
-        methods connect_volume() and disconnect_volume()
-        """
-
-        from distutils.spawn import find_executable
-        # FIXME maybe try and use filters instead of hard coded path
-        _sdc_binary_paths = (
-            "/opt/emc/scaleio", "/emc/scaleio", "/bin/emc/scaleio")
-
-        for bin_path in _sdc_binary_paths:
-            _sdc_exec = find_executable('drv_cfg', path=bin_path)
-            if _sdc_exec:
-                self._binary_path = path_join(bin_path, _sdc_exec)
-                break  # executable sdc found we can leave loop
 
     def _set_properties(self, host_addr, auth):
         """
@@ -235,8 +208,8 @@ class _ScaleIOSDC(object):
             req = api_request(op=HttpAction.GET, host=host_addr,
                               uri=r_uri, data=None, auth=auth)
             sdc_list = req.json()
-
             return sdc_list
+
         # retrieve a list of SDCs
         sdc_instances = list_sdcs()
         # iterare over returned SDC's select one whose GUID matches
@@ -267,14 +240,6 @@ class _ScaleIOSDC(object):
         :return:
         """
         self._guid = value
-
-    @property
-    def binpath(self):
-        """
-        Get binary path where SDC drv_cfg is located on host system
-        :return:
-        """
-        return self._binary_path
 
 
 class _ScaleIOVolume(object):
