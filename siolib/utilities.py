@@ -113,8 +113,6 @@ def in_container():
     :return: Boolean True, running in a container False, not running in a container
     """
 
-    import re
-
     containerized = False
     cn_match =  re.compile('.*?' + '(docker)|(lxc)', re.IGNORECASE|re.DOTALL)
     try:

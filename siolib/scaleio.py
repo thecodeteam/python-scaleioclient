@@ -20,7 +20,7 @@ from os.path import basename, join as path_join, exists
 from functools import wraps
 from time import sleep
 from siolib import ConfigOpts, SIOGROUP, SIOOPTS, VOL_TYPE
-from siolib.utilities import check_size, UnitSize, encode_base64, encode_string, in_container, parse_value, is_id
+from siolib.utilities import check_size, UnitSize, encode_string, in_container, parse_value, is_id
 from siolib.httphelper import HttpAction, request, basicauth, Token
 from time import time
 import subprocess
@@ -141,7 +141,6 @@ def api_request(**kwargs):
     :return: HTTP request object
     """
 
-    req = None
     # attempt to use gw 1 token
     server_authtoken = kwargs.get('token')
     username, _ = kwargs.get('auth')
@@ -750,9 +749,9 @@ class ScaleIO(object):
             remove_mode = "ONLY_ME"
         else:
             # TODO: Add bit masking and testing to see what option selected
-            pass
+            remove_mode = "ONLY_ME"
 
-        params = {'removeMode': 'ONLY_ME'}
+        params = {'removeMode': remove_mode}
 
         LOG.debug("SIOLIB -> removing volume params=%r" % params)
 
@@ -951,7 +950,6 @@ class ScaleIO(object):
         used_bytes = 0
         total_bytes = 0
         free_bytes = 0
-        sio_stripe_kb = 8388608
 
         # FIXME: Redo all of this must be a better and more efficient way
         # get protection domain id for request store this for the duration of
@@ -1097,12 +1095,12 @@ class ScaleIO(object):
                           uri=r_uri, data=params, auth=self.auth,
                           token=self.server_authtoken)
         if req.status_code == 200:
-            id = req.json().get('id')
+            device_id = req.json().get('id')
         else:
             LOG.error("SIOLIB -> Add device error: %s" % (req.json().get('message')))
             raise Exception("SIOLIB -> Error adding device to SDS: %s" % (req.json().get('message')))
 
-        return id
+        return device_id
 
     def remove_sds_device(self, device_id):
 
@@ -1131,12 +1129,12 @@ class ScaleIO(object):
                           token=self.server_authtoken)
 
         if req.status_code == 200:
-            id = req.json()
+            pool_id = req.json()
         else:
             LOG.error("SIOLIB -> Pool %s not found: %s" % (pool_name, req.json().get('message')))
             raise LookupError("SIOLIB -> Error retrieving Pool ID: %s" % (req.json().get('message')))
 
-        return id
+        return pool_id
 
     def get_sds_id(self, sds_name):
 
@@ -1147,12 +1145,12 @@ class ScaleIO(object):
                           token=self.server_authtoken)
 
         if req.status_code == 200:
-            id = req.json()
+            sds_id = req.json()
         else:
             LOG.error("SIOLIB -> SDS %s not found: %s" % (sds_name, req.json().get('message')))
             raise LookupError("SIOLIB -> Error retrieving SDS ID: %s" % (req.json().get('message')))
 
-        return id
+        return sds_id
 
     def get_device_id(self, device_name, sds_id):
 
@@ -1163,12 +1161,12 @@ class ScaleIO(object):
                           token=self.server_authtoken)
 
         if req.status_code == 200:
-            id = req.json()
+            device_id = req.json()
         else:
             LOG.error("SIOLIB -> Device %s not found: %s" % (device_name, req.json().get('message')))
             raise LookupError("SIOLIB -> Error retrieving Device ID: %s" % (req.json().get('message')))
 
-        return id
+        return device_id
 
     def list_volume_names(self):
 
@@ -1299,13 +1297,13 @@ class ScaleIO(object):
                           token=self.server_authtoken)
 
         if req.status_code == 200:
-            for property, value in req.json().iteritems():
-                if property in degraded_properties:
+            for key, value in req.json().iteritems():
+                if key in degraded_properties:
                     degraded_stats.append(value)
-                    degraded_map[property] = value
+                    degraded_map[key] = value
                 else:
                     system_stats.append(value)
-                    rebuild_map[property] = value
+                    rebuild_map[key] = value
 
         # check if there are any degraded stats
         degraded = any(degraded_stats)

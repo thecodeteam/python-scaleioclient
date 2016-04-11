@@ -153,19 +153,19 @@ class Singleton(type):
 
 
     _klasses = {}
-    def __call__(cls, *args, **kwargs):
+    def __call__(self, *args, **kwargs):
         """
         Callable used to check if the class is already instanced
-        :param cls:
+        :param self:
         :param args: Class args
         :param kwargs: Class keyword args
         :return: Instance of class or a new instance of the class
         """
 
         # standard design pattern for a singleton class if instance exists return
-        if cls not in cls._klasses:
-            cls._klasses[cls] = super(Singleton, cls).__call__(*args, **kwargs)
-        return cls._klasses[cls]
+        if self not in self._klasses:
+            self._klasses[self] = super(Singleton, self).__call__(*args, **kwargs)
+        return self._klasses[self]
 
 
 class Token(object):
