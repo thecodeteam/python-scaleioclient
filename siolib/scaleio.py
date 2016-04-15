@@ -16,15 +16,13 @@ ScaleIO API library
 #
 
 from os import listdir
-from os.path import basename, join as path_join, exists
+from os.path import exists
 from functools import wraps
 from time import sleep
 from siolib import ConfigOpts, SIOGROUP, SIOOPTS, VOL_TYPE
 from siolib.utilities import check_size, UnitSize, encode_string, in_container, parse_value, is_id
 from siolib.httphelper import HttpAction, request, basicauth, Token
 from time import time
-import subprocess
-import re
 import oslo_config
 
 import logging
@@ -958,31 +956,6 @@ class ScaleIO(object):
                         % (volume_id, req.json().get('message')))
 
         return volume_obj
-
-    @staticmethod
-    def parse_volumeid(device_path):
-        """
-        Given a DEVSYMLINK path, the volume ID can be interogated from ScaleIO qualified name (SQN).
-        :param device_path: DEVSYMLINK path to parse volume id from
-        :return: ScaleIO volume id
-        """
-
-        # TODO: deprecate this whole function and instead use the instance uuid
-        # to obtain volume id's
-        vol_regx = re.compile(
-            "^(emc)(-)(vol)(-).*?(-)((?:[a-z0-9]*[a-z][a-z]*[0-9]+[a-z0-9]*))")
-        volume = basename(device_path)
-
-        vol_match = vol_regx.match(volume)
-
-        if vol_match:
-            volume_id = str(vol_match.group(6))
-        else:
-            raise RuntimeError(
-                "Cannot parse EMC volume id from device path %s"% device_path)
-
-        return volume_id
-
 
     def storagepool_size(self, sp_id=None, by_sds=False):
         """
