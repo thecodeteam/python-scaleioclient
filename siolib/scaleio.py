@@ -36,7 +36,7 @@ CONF.register_group(SIOGROUP)
 CONF.register_opts(SIOOPTS, SIOGROUP)
 
 # ScaleIO error constants
-VOLUME_NAME_NOT_FOUND_ERROR = 3
+RESOURCE_NOT_FOUND_ERROR = 3
 VOLUME_NOT_FOUND_ERROR = 79
 VOLUME_NOT_MAPPED_ERROR = 84
 VOLUME_ALREADY_MAPPED_ERROR = 81
@@ -604,7 +604,7 @@ class ScaleIO(object):
             if req.status_code == 200:
                 volume_id = req.json()
                 LOG.info("SIOLIB -> Retrieved volume id %s successfully" % volume_id)
-            elif req.json().get('errorCode') == VOLUME_NAME_NOT_FOUND_ERROR:
+            elif req.json().get('errorCode') == RESOURCE_NOT_FOUND_ERROR:
                 raise VolumeNotFound("Volume name '%s' is not found" % volume_name)
             else:
                 LOG.error("SIOLIB -> Error retreiving volume id: %s" % (req.json().get('message')))
