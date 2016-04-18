@@ -35,11 +35,18 @@ CONF.register_opts(SIOOPTS, SIOGROUP)
 
 # ScaleIO error constants
 RESOURCE_NOT_FOUND_ERROR = 3
+SDS_COMMUNICATION_ERROR = 69
 VOLUME_NOT_FOUND_ERROR = 79
-VOLUME_NOT_MAPPED_ERROR = 84
 VOLUME_ALREADY_MAPPED_ERROR = 81
+VOLUME_NOT_MAPPED_ERROR = 84
+SDS_PORT_INUSE = 93
 VOLUME_ALREADY_EXISTS = 99
+SDS_REMOVAL_INPROGRESS = 103
+VOLUME_MAPPED = 104
+DEVICE_NOT_FOUND = 126
 VOLUME_CANNOT_EXTEND = 133
+DEVICE_REMOVAL_INPROGRESS = 135
+DEVICE_ALREADY_EXISTS = 206
 
 
 class Error(Exception):
@@ -1053,7 +1060,7 @@ class ScaleIO(object):
                           uri=r_uri, auth=self.auth,
                           token=self.server_authtoken)
         if req.status_code != 200:
-            if req.json().get('errorCode') != 103:
+            if req.json().get('errorCode') != SDS_REMOVAL_INPROGRESS:
                 LOG.error("SIOLIB -> Remove SDS error: %s" % (req.json().get('message')))
         else:
             remove_result = True
@@ -1141,7 +1148,7 @@ class ScaleIO(object):
                           token=self.server_authtoken)
 
         if req.status_code != 200:
-            if req.json().get('errorCode') != 103:
+            if req.json().get('errorCode') != SDS_REMOVAL_INPROGRESS:
                 # FIXME determine error code else log gets filled up
                 LOG.error("SIOLIB -> Remove device error: %s" % (req.json().get('message')))
         else:
