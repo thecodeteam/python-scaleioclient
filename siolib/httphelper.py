@@ -41,6 +41,9 @@ API_LOGIN = 'api/login'
 API_GW_LOGIN = 'api/gatewayLogin'
 REQ_TYPE = {'gw_request': API_GW_LOGIN, 'api_request': API_LOGIN}
 
+GW_REQ_TIMEOUT = 30.0
+GW_REQ_RETRIES = 4
+
 def basicauth(func):
     """
     Decorator that will acquire an HTTP token that will be used for authentication
@@ -102,7 +105,7 @@ def request(op, addr, uri, data=None, headers=None, auth=None):
     user, password = auth  # split up auth tuple
     http_auth = HTTPBasicAuth(user, password)  # create HTTP basic auth object
     session = requests.Session()  # Get session
-    session.mount(u_prefix, Adapter())  # Mount to adapter
+    session.mount(u_prefix, Adapter(max_retries=GW_REQ_RETRIES))  # Mount to adapter
     #session.headers.update({'Authorization': password})
     session.headers.update(headers)  # update headers
     r_url = path_join(u_prefix, '%s:%s' % addr, uri)  # create url of request
@@ -112,9 +115,9 @@ def request(op, addr, uri, data=None, headers=None, auth=None):
     try:
         if op_value in ('put', 'post', 'patch'):
             http_resp = http_func(
-                r_url, auth=http_auth, data=dumps(data), verify=False)
+                r_url, auth=http_auth, data=dumps(data), verify=False, timeout=GW_REQ_TIMEOUT)
         else:
-            http_resp = http_func(r_url, auth=http_auth, verify=False)
+            http_resp = http_func(r_url, auth=http_auth, verify=False, timeout=GW_REQ_TIMEOUT)
         status_code = http_resp.status_code
         reason = http_resp.reason
     except requests.Timeout as err:
