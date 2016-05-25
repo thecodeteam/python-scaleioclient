@@ -189,82 +189,6 @@ def api_request(**kwargs):
     return req
 
 
-class _ScaleIOSDC(object):
-
-    """
-     Private class that represents a ScaleIO SDC client object.
-    """
-    _guid = None
-
-    def __init__(self, host_addr, auth, sdc_uuid=None):
-        """
-        Create a ScaleIO SDC object.
-        :param sdc_uuid: Force SDC object to use an already defined SDC uuid (optional)
-        :return: HTTP request object
-        """
-
-        # locate the local SDC binary and query the local guid
-        if not sdc_uuid:
-            raise RuntimeError("Cannot locate SDC")
-
-        self.guid = sdc_uuid.strip()
-        self._set_properties(host_addr=host_addr, auth=auth)
-
-    def _set_properties(self, host_addr, auth):
-        """
-        Private method that will create class attributes based on SDC object returned
-        by ScaleIO
-        :param host_addr: IP:port tuple pair of ScaleIO rest gateway
-        :param auth: Username:Password tuple for talking to ScaleIO rest gateway
-        :return: Nothing
-        """
-
-        def list_sdcs():
-            """
-            Nested function that will call the ScaleIO gateway and return a list of SDC's
-            for a given system installation.
-            """
-
-            # TODO: It would be far more efficient if there was a REST API call
-            # that could retrieve a SDC object from ScaleIO based on the GUID
-            r_uri = "/api/types/Sdc/instances"
-            req = api_request(op=HttpAction.GET, host=host_addr,
-                              uri=r_uri, data=None, auth=auth)
-            sdc_list = req.json()
-            return sdc_list
-
-        # retrieve a list of SDCs
-        sdc_instances = list_sdcs()
-        # iterare over returned SDC's select one whose GUID matches
-        sdc_instance = [
-            x for x in sdc_instances if x.get('sdcGuid') == self.guid.strip()]
-        if sdc_instance and len(sdc_instance) == 1:
-            # set class attributes
-            for k, v in sdc_instance[0].iteritems():
-                self.__setattr__(k, v)
-        else:
-            raise Exception("Error setting SDC object properties. Ensure that the local SDC has MDM's configured."
-                            "use drv_cfg --query_mdms for more information!")
-
-    @property
-    def guid(self):
-        """
-        Get SDC guid identifier
-        :return:
-        """
-
-        return self._guid
-
-    @guid.setter
-    def guid(self, value):
-        """
-        Set the SDC guid identifier
-        :param value:
-        :return:
-        """
-        self._guid = value
-
-
 class _ScaleIOVolume(object):
 
     """
@@ -353,10 +277,8 @@ class ScaleIO(object):
     ScaleIO API class
     """
 
-    sdc = None # ScaleIO data client object
-
     def __init__(self, rest_server_ip='', rest_server_port=443, rest_server_username='', rest_server_password='',
-                 verify_server_certificate=False, server_certificate_path='', default_sdcguid=None, skip_sdc=False):
+                 verify_server_certificate=False, server_certificate_path=''):
         """
         Create a ScaleIO API object
         :param conf_filepath: Path to configuration file for ScaleIO
@@ -371,11 +293,6 @@ class ScaleIO(object):
         # Check if we will be using a certificate
         if verify_server_certificate:
             self._set_certificate(server_certificate_path)
-        # if testing allow ps without sdc
-        if not skip_sdc:
-            # get SDC object
-            self.sdc = _ScaleIOSDC(
-                host_addr=self.host_addr, auth=self.auth, sdc_uuid=default_sdcguid)
 
     def _get_provisiontype(self, provisioning_type):
         """
@@ -467,11 +384,11 @@ class ScaleIO(object):
 
         return req.json()
 
-    def _unmap_volume(self, volume_id, sdc_id=None, unmap_all=False):
+    def _unmap_volume(self, volume_id, sdc_guid=None, unmap_all=False):
         """
         Private method unmaps a volume from one or all SDCs.
         :param volume_id: Volume id
-        :param sdcid: Unique SDC identifier
+        :param sdc_guid: Unique SDC identifier
         :param unmap_all: True, unmap from all SDCs, False only unmap from local SDC
         :return: Nothing
         """
@@ -481,18 +398,16 @@ class ScaleIO(object):
             LOG.warn("SIOLIB -> Parameter is not a valid ID retrieving ID for _unmap_volume. Found %s" % volume_id)
 
         if not unmap_all:
-            # Check if sdc configured if not do not perform map
-            if not self.sdc and not unmap_all:
-                LOG.warn("SIOLIB -> SDC is not configured, unable to unmap volumes")
-                return
+            if not sdc_guid:
+                LOG.warn("SIOLIB -> Invalid _unmap_volume invoke")
+                raise TypeError('sdc_guid must be specified or unmap_all must be True')
             else:
-                sdc_id = sdc_id or self.sdc.id
-                LOG.info("SIOLIB -> Using ScaleIO SDC client ID %s for map operation." % self.sdc.id)
+                LOG.info("SIOLIB -> Using ScaleIO SDC client GUID %s for map operation." % self.sdc_guid)
 
         if unmap_all:  # unmap from all sdcs
             params = {'allSdcs': ''}
         else:  # only unmap from local sdc
-            params = {'sdcId': sdc_id}
+            params = {'guid': sdc_guid}
 
         LOG.debug("SIOLIB -> unmap volume params=%r" % params)
         r_uri = "/api/instances/Volume::" + \
@@ -512,11 +427,11 @@ class ScaleIO(object):
             raise Error("Error unmapping volume '%s': %s"
                         % (volume_id, req.json().get('message')))
 
-    def _map_volume(self, volume_id, guid=None, map_all=True):
+    def _map_volume(self, volume_id, sdc_guid=None, map_all=True):
         """
         Private method maps a volume to a SDC
         :param volume_id: Volume id
-        :param guid: Unique SDC identifier supplied by drv_cfg utility
+        :param sdc_guid: Unique SDC identifier supplied by drv_cfg utility
         :param map_all: True, map volume to all configured SDCs. False only map to local SDC.
         :return: Nothing
         """
@@ -526,13 +441,12 @@ class ScaleIO(object):
             LOG.warn("SIOLIB -> Parameter is not a valid ID retrieving ID for _map_volume. Found %s" % volume_id)
 
         # Check if sdc configured if not do not perform map
-        if not self.sdc:
-            LOG.warn("SIOLIB -> SDC is not configured, unable to map volumes")
-            return
+        if not sdc_guid and not map_all:
+            LOG.warn("SIOLIB -> Invalid _map_volume invoke")
+            raise TypeError('sdc_guid must be specified or map_all must be True')
         else:
-            LOG.info("SIOLIB -> Using ScaleIO SDC client ID %s for map operation." % self.sdc.id)
+            LOG.info("SIOLIB -> Using ScaleIO SDC client GUID %s for map operation." % self.sdc_guid)
 
-        sdc_guid = guid or self.sdc.guid
         multi_map = str(map_all).lower()
         params = {'guid': sdc_guid, 'allowMultipleMappings': multi_map}
 
@@ -1053,18 +967,6 @@ class ScaleIO(object):
         return volume_names
 
     @property
-    def dataclient(self):
-        """
-        SDC property, returns SDC object associated with this local connection
-        :return: SDC object
-        """
-
-        # Check if sdc configured if not do not perform map
-        if not self.sdc:
-            return
-        return self.sdc
-
-    @property
     def server_authtoken(self):
         """
         HTTP Token object property getter
@@ -1082,15 +984,3 @@ class ScaleIO(object):
         """
 
         self._server_authtoken = token
-
-    @property
-    def sdc_guid(self):
-        """
-        Return GUID of current local SDC
-        :return: GUID identifier of local SDC
-        """
-
-        # Check if sdc configured if not do not perform map
-        if not self.sdc:
-            return
-        return self.sdc.guid
