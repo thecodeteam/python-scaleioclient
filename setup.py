@@ -45,7 +45,6 @@ setup(
         "Operating System :: OS Independent",
         "Intended Audience :: Developers",],
     install_requires=[
-        'oslo.config',
         'requests',
         'urllib3',
         'enum34',

@@ -19,19 +19,13 @@ from os import listdir
 from os.path import exists
 from functools import wraps
 from time import sleep
-from siolib import ConfigOpts, SIOGROUP, SIOOPTS, VOL_TYPE
+from siolib import VOL_TYPE
 from siolib.utilities import check_size, UnitSize, encode_string, in_container, parse_value, is_id
 from siolib.httphelper import HttpAction, request, basicauth, Token
 from time import time
-import oslo_config
 
 import logging
 LOG = logging.getLogger(__name__)
-
-# Oslo conf object
-CONF = ConfigOpts()
-CONF.register_group(SIOGROUP)
-CONF.register_opts(SIOOPTS, SIOGROUP)
 
 # ScaleIO error constants
 RESOURCE_NOT_FOUND_ERROR = 3
@@ -359,83 +353,59 @@ class ScaleIO(object):
     ScaleIO API class
     """
 
-    pd_id = None  # store protection domain id
-    sp_id = None  # store storage pool id
     sdc = None # ScaleIO data client object
 
-    def __init__(self, conf_filepath=None, conf=None, pd_name=None, sp_name=None, skip_sdc=False):
+    def __init__(self, rest_server_ip='', rest_server_port=443, rest_server_username='', rest_server_password='',
+                 verify_server_certificate=False, server_certificate_path='', default_sdcguid=None, skip_sdc=False):
         """
         Create a ScaleIO API object
         :param conf_filepath: Path to configuration file for ScaleIO
-        :param pd_name: Protection domain name (optional)
-        :param sp_name: Storage pool name (optional)
         :return: Nothing
         """
 
-        # FIXME: The config object needs to be refactored in.
-        if conf: # force conf
-            self.sio_conf = conf
-        elif conf_filepath and isinstance(conf_filepath, oslo_config.cfg.ConfigOpts):
-            # use what we have (storage manager, other c3 modules)
-            default_path = conf_filepath.default_config_files
-            CONF(default_config_files=default_path)
-            self.sio_conf = CONF
-        else: # file path passed in use that
-            CONF(default_config_files=[conf_filepath])
-            self.sio_conf = CONF
-
-        self.host_addr = (
-            self.sio_conf.scaleio.rest_server_ip, str(self.sio_conf.scaleio.rest_server_port))
-        self.auth = (
-            self.sio_conf.scaleio.rest_server_username, self.sio_conf.scaleio.rest_server_password)
-        self.protection_domain = pd_name or self.sio_conf.scaleio.protection_domain_name
-        self.storage_pool = sp_name or self.sio_conf.scaleio.storage_pool_name
-        self.storage_pools = self.sio_conf.scaleio.storage_pools
-        self.round_volume = self.sio_conf.scaleio.round_volume_capacity
-        self.force_delete = self.sio_conf.scaleio.force_delete
-        self.unmap_on_delete = self.sio_conf.scaleio.unmap_volume_before_deletion
+        self.host_addr = (rest_server_ip, str(rest_server_port))
+        self.auth = (rest_server_username, rest_server_password)
         self.server_authtoken = Token()
 
         # set the volume type thick or thin provisioned
-        self._set_provisiontype()
         # Check if we will be using a certificate
-        if self.sio_conf.scaleio.verify_server_certificate:
-            self._set_certificate()
+        if verify_server_certificate:
+            self._set_certificate(server_certificate_path)
         # if testing allow ps without sdc
         if not skip_sdc:
             # get SDC object
             self.sdc = _ScaleIOSDC(
-                host_addr=self.host_addr, auth=self.auth, sdc_uuid=self.sio_conf.scaleio.default_sdcguid)
+                host_addr=self.host_addr, auth=self.auth, sdc_uuid=default_sdcguid)
 
-    def _set_provisiontype(self):
+    def _get_provisiontype(self, provisioning_type):
         """
-        Set the volume provisioning type "Thick" or "Thin" provisioned. You can
-        define volumes as thick, where the entire capacity is provisioned
+        Convert the volume provisioning type "Thick" or "Thin" provisioned from siolib representation to SIO one.
+        You can define volumes as thick, where the entire capacity is provisioned
         for storage, or thin, where only the capacity currently needed is
         provisioned.
-        :return: Nothing
+        :param provisioning_type: Provisioning type value supported by siolib
+        :return: Provisioning type value supported by ScaleIO
         """
 
         try:
-            # retrieve value from config file
-            provisioning_type = self.sio_conf.scaleio.provisioning_type.lower()
+            provisioning_type = provisioning_type.lower()
             # sio requires string value to be ThickProvisioned or
             # ThinProvisioned
-            self.provisioning_type = VOL_TYPE[provisioning_type]
+            return VOL_TYPE[provisioning_type]
         except KeyError:
             raise ValueError(
-                "Provisioning type is not valid. Correct values are ThickProvisioned or ThinProvisioned")
+                "Provisioning type is not valid. Correct values are thick or thin")
 
-    def _set_certificate(self):
+    def _set_certificate(self, server_certificate_path):
         """
         Set certificate to use for ScaleIO REST gateway calls
         :return: Nothing
         """
 
         from os.path import isabs
-        if isabs(self.sio_conf.scaleio.server_certificate_path):
+        if isabs(server_certificate_path):
             self.verify_cert = True
-            self.cert_path = self.sio_conf.scaleio.server_certificate_path
+            self.cert_path = server_certificate_path
 
     def _validate_size(self, size, from_unit, to_unit):
         """
@@ -452,7 +422,7 @@ class ScaleIO(object):
         new_size, block_size = check_size(size, from_unit, to_unit)
 
         # check and ensure size is a multiple of 8GB modulo op
-        if new_size % block_size != 0 and not self.round_volume:
+        if new_size % block_size != 0:
             raise ValueError(
                 "Cannot create volume with size %sGB (not a multiple of 8GB)" % size)
 
@@ -675,7 +645,7 @@ class ScaleIO(object):
         return volume_object.name
 
     @b64encode_volume
-    def create_volume(self, volume_name, volume_size_gb=8, provisioning_type=None):
+    def create_volume(self, volume_name, protection_domain, storage_pool, provisioning_type='thick', volume_size_gb=8):
         """
         Add a volume. You can create a volume when the requested capacity is
         available. To start allocating volumes, the system requires that
@@ -687,8 +657,10 @@ class ScaleIO(object):
           * Contain only alphanumeric and punctuation characters
           * Be unique within the object type
         :param volume_name: Name of the volume you want to create
+        :param protection_domain: Protection domain name
+        :param storage_pool: Storage pool name
+        :param provisioning_type: thick/ThickProvisioned or thin/ThinProvisioned
         :param volume_size_gb: The size of the volume in GB (must be multiple of 8GB)
-        :param provisioning_type: ThickProvisioning or ThinProvisioning
         :return: Tuple containing the volume id and volume name created
         """
 
@@ -698,21 +670,19 @@ class ScaleIO(object):
 
         # get protection domain id for request store this for the duration of
         # the object
-        if not self.pd_id:
-            self.pd_id = self._get_pdid(self.protection_domain)
-        if not self.sp_id:
-            self.sp_id = self._get_spid(self.storage_pool, self.pd_id)
+        pd_id = self._get_pdid(protection_domain)
+        sp_id = self._get_spid(storage_pool, pd_id)
         # create requires size in KB, so we will convert and check size is
         # multiple of 8GB
         volume_size_kb = self._validate_size(
             volume_size_gb, UnitSize.GBYTE, UnitSize.KBYTE)
 
         # request payload containing volume create params
-        params = {'protectionDomainId': self.pd_id,
+        params = {'protectionDomainId': pd_id,
                   'volumeSizeInKb': str(volume_size_kb),
                   'name': volume_name,
-                  'volumeType': provisioning_type or self.provisioning_type,
-                  'storagePoolId': self.sp_id}
+                  'volumeType': self._get_provisiontype(provisioning_type),
+                  'storagePoolId': sp_id}
 
         LOG.debug("SIOLIB -> creating volume params=%r" % params)
 
@@ -734,7 +704,8 @@ class ScaleIO(object):
         return volume_id, volume_name
 
     @b64encode_volume
-    def delete_volume(self, volume_name=None, include_descendents=False, only_descendents=False, vtree=False, unmap_on_delete=False):
+    def delete_volume(self, volume_name=None, include_descendents=False, only_descendents=False, vtree=False,
+                      unmap_on_delete=False, force_delete=True):
         """
         Delete a volume. This command removes a ScaleIO volume. Before
         removing a volume, you must ensure that it is not mapped to any SDCs.
@@ -750,6 +721,8 @@ class ScaleIO(object):
         :param include_descendents: Remove volume along with any descendents
         :param only_descendents: Remove only the descendents of the volume
         :param vtree: Remove the entire VTREE
+        :param unmap_on_delete: Unmap volume from all SDCs before deleting
+        :param force_delete: Ignore if volume is already deleted
         :return: Nothing
         """
 
@@ -774,7 +747,7 @@ class ScaleIO(object):
 
         LOG.debug("SIOLIB -> removing volume params=%r" % params)
 
-        if self.unmap_on_delete or unmap_on_delete:
+        if unmap_on_delete:
             LOG.info("SIOLIB -> Unmap before delete flag True, "
                      "attempting to unmap volume from all sdcs before deletion")
             try:
@@ -790,7 +763,7 @@ class ScaleIO(object):
         if req.status_code == 200:
             LOG.info("SIOLIB -> Removed volume %s successfully" % volume_id)
         elif req.json().get('errorCode') == VOLUME_NOT_FOUND_ERROR:
-            if not self.force_delete:
+            if not force_delete:
                 LOG.info("SIOLIB -> Error removing volume: %s" %
                       (req.json().get('message')))
                 raise VolumeNotFound("Volume '%s' is not found" % volume_id)
@@ -964,14 +937,13 @@ class ScaleIO(object):
 
         return volume_obj
 
-    def storagepool_size(self, sp_id=None, by_sds=False):
+    def storagepool_size(self, protection_domain, storage_pool):
         """
         For a given single storage pool, return the used, total and free space
         in bytes that can be allocated for Volumes. Note this is not the total
         capacity of the system.
-        :param sp_id:  ScaleIO storage pool id to query against
-        :param by_sds: True, divide results by SDS count used primarily for
-                       reporting capacity results in OpenStack Nova.
+        :param protection_domain: Protection domain name
+        :param storage_pool: Storage pool name
         :return: Tuple used_bytes, total_bytes, free_bytes
         """
 
@@ -982,19 +954,14 @@ class ScaleIO(object):
         # FIXME: Redo all of this must be a better and more efficient way
         # get protection domain id for request store this for the duration of
         # the object
-        if not self.pd_id:
-            self.pd_id = self._get_pdid(self.protection_domain)
-        if not self.sp_id and not sp_id:
-            self.sp_id = self._get_spid(self.storage_pool, self.pd_id)
-
-        # set based on if param passed in
-        sp_id = self.sp_id or sp_id
+        pd_id = self._get_pdid(protection_domain)
+        sp_id = self._get_spid(storage_pool, pd_id)
 
         # FIXME: Redo all of this must be a better and more efficient way
         r_uri = "/api/types/StoragePool/instances/action/querySelectedStatistics"
         r_uri2 = "/api/types/ProtectionDomain/instances/action/querySelectedStatistics"
         params = {"ids": [sp_id], "properties": ["capacityInUseInKb", "capacityLimitInKb"]}
-        params2 = {"ids": [self.pd_id ], "properties": ["numOfSds"]}
+        params2 = {"ids": [pd_id ], "properties": ["numOfSds"]}
         req = api_request(op=HttpAction.POST, host=self.host_addr,
                           uri=r_uri, data=params, auth=self.auth,
                           token=self.server_authtoken)
@@ -1004,7 +971,7 @@ class ScaleIO(object):
 
         # FIXME: Redo all of this must be a better and more efficient way
         if req.status_code == 200 and req2.status_code == 200:
-            sds_count = req2.json().get(self.pd_id).get('numOfSds')
+            sds_count = req2.json().get(pd_id).get('numOfSds')
             # Total capacity for volumes in a given pool
             total_kb = req.json().get(sp_id).get('capacityLimitInKb') / sds_count
             # Used capacity divide by 2
@@ -1044,8 +1011,7 @@ class ScaleIO(object):
             used_kb = req.json().get('capacityInUseInKb')
             total_kb = req.json().get('capacityLimitInKb')
             free_kb = (int(total_kb) - int(used_kb))
-            LOG.debug("Storage pool id %s, Total=%sKB, Used=%sKB, "
-                      "Free=%sKB" % (self.pd_id, total_kb, used_kb, free_kb))
+            LOG.debug("Total=%sKB, Used=%sKB, Free=%sKB" % (total_kb, used_kb, free_kb))
         else:
             raise Error("Error retrieving cluster statistics: %s"
                         % req.json().get('message'))
