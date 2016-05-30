@@ -9,24 +9,28 @@ This module is a stand alone module and may be used by any tool
 to manage ScaleIO volumes.
 """
 
+# Copyright (c) 2015 - 2016 EMC Corporation.
+# All Rights Reserved.
 #
-# Copyright (c) 2015 EMC Corporation
-# All Rights Reserved
-
-# This software contains the intellectual property of EMC Corporation
-# or is licensed to EMC Corporation from third parties.  Use of this
-# software and the intellectual property contained therein is expressly
-# limited to the terms and conditions of the License Agreement under which
-# it is provided by or on behalf of EMC.
+#    Licensed under the Apache License, Version 2.0 (the "License"); you may
+#    not use this file except in compliance with the License. You may obtain
+#    a copy of the License at
 #
+#         http://www.apache.org/licenses/LICENSE-2.0
+#
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#    License for the specific language governing permissions and limitations
+#    under the License.
 
-__version__ = "1.3.5"
-__license__ = "emc"
-__author__ = "Ryan Hobbs"
-__author_email__ = "ryan.hobbs@emc.com"
-__company__ = "emc"
+__version__ = "1.6.0.dev1"
+__license__ = "Apache Software License, Version 2.0"
+__author__ = "Cloudscaling (EMC)"
+__author_email__ = "openstack@cloudscaling.com"
+__company__ = "EMC Corporation"
 _copyright_year_begin = "2015"
-__date__ = "2015-06-04"
+__date__ = "2016-05-30"
 _copyright_year_latest = __date__.split('-')[0]
 _copyright_year_range = _copyright_year_begin
 if _copyright_year_latest > _copyright_year_begin:
