@@ -299,4 +299,8 @@ def is_sio_native(value):
 
 def is_id(value):
 
-    return is_sio_native(value)
+    try:
+        int(value, 16)
+        return True
+    except ValueError:
+        return False

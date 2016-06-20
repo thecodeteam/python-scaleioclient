@@ -406,7 +406,7 @@ class ScaleIO(object):
                 LOG.warn("SIOLIB -> Invalid _unmap_volume invoke")
                 raise TypeError('sdc_guid must be specified or unmap_all must be True')
             else:
-                LOG.info("SIOLIB -> Using ScaleIO SDC client GUID %s for map operation." % self.sdc_guid)
+                LOG.info("SIOLIB -> Using ScaleIO SDC client GUID %s for map operation." % sdc_guid)
 
         if unmap_all:  # unmap from all sdcs
             params = {'allSdcs': ''}
@@ -422,7 +422,7 @@ class ScaleIO(object):
                           token=self.server_authtoken)
         if req.status_code == 200:  # success
             LOG.info("SIOLIB -> Unmapped volume %s successfully" % volume_id)
-        elif req.status_code == VOLUME_NOT_MAPPED_ERROR:
+        elif req.json().get('errorCode') == VOLUME_NOT_MAPPED_ERROR:
             LOG.warn("SIOLIB -> Volume cannot be unmapped: %s" %
                   (req.json().get('message')))
             raise VolumeNotMapped("Volume '%s' is not mapped" % volume_id)
@@ -449,7 +449,7 @@ class ScaleIO(object):
             LOG.warn("SIOLIB -> Invalid _map_volume invoke")
             raise TypeError('sdc_guid must be specified or map_all must be True')
         else:
-            LOG.info("SIOLIB -> Using ScaleIO SDC client GUID %s for map operation." % self.sdc_guid)
+            LOG.info("SIOLIB -> Using ScaleIO SDC client GUID %s for map operation." % sdc_guid)
 
         multi_map = str(map_all).lower()
         params = {'guid': sdc_guid, 'allowMultipleMappings': multi_map}
@@ -462,7 +462,7 @@ class ScaleIO(object):
                           token=self.server_authtoken)
         if req.status_code == 200:  # success
             LOG.info("SIOLIB -> Mapped volume %s successfully" % volume_id)
-        elif req.status_code == VOLUME_ALREADY_MAPPED_ERROR:
+        elif req.json().get('errorCode') == VOLUME_ALREADY_MAPPED_ERROR:
             LOG.warn("SIOLIB -> Volume already mapped: %s" % (req.json().get('message')))
             raise VolumeAlreadyMapped("Volume '%s' is already mapped: %s"
                                       % (volume_id, req.json().get('message')))
@@ -768,7 +768,7 @@ class ScaleIO(object):
 
         return snapshot_gid, volume_list
 
-    def detach_volume(self, volume_id, unmap_all=False):
+    def detach_volume(self, volume_id, sdc_guid=None, unmap_all=False):
         """
         Detach volume from SDC
         :param volume_id: Id of volume to detach
@@ -781,9 +781,9 @@ class ScaleIO(object):
             LOG.warn("SIOLIB -> Parameter is not a valid ID retrieving ID for detach_volume. Found %s" % volume_id)
 
         # unmap
-        self._unmap_volume(volume_id=volume_id, unmap_all=unmap_all)
+        self._unmap_volume(volume_id, sdc_guid=sdc_guid, unmap_all=unmap_all)
 
-    def attach_volume(self, volume_id):
+    def attach_volume(self, volume_id, sdc_guid):
         """
         Attach a volume to a SDC
         :param volume_id: If of volume to attach
@@ -794,7 +794,7 @@ class ScaleIO(object):
             volume_id = self.get_volumeid(volume_name=volume_id)
             LOG.warn("SIOLIB -> Parameter is not a valid ID retrieving ID for attach_volume. Found %s" % volume_id)
         # map
-        self._map_volume(volume_id)
+        self._map_volume(volume_id, sdc_guid=sdc_guid)
 
     def rename_volume(self, volume_id, new_volume_name):
         """
