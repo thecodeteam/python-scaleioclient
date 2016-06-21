@@ -243,6 +243,25 @@ class ScaleIO(object):
             self.verify_cert = True
             self.cert_path = server_certificate_path
 
+    def _validate_volume_id(self, volume_id_or_name):
+        """
+        Validate and convert volume ID. If specified volume ID is not ScaleIO volume ID,
+        the function interprets it as a name and requests ScaleIO to get ID by the name.
+        :param volume_id_or_name: ScaleIO volume ID or volume name
+        :return: ScaleIO volume ID
+        """
+        if not volume_id_or_name:
+            raise ValueError(
+                "Invalid volume_id parameter, volume_id=%s" % volume_id_or_name)
+
+        if is_id(volume_id_or_name):
+            return volume_id_or_name
+
+        volume_id = self.get_volumeid(volume_id_or_name)
+        LOG.info("SIOLIB -> Parameter %s is not a valid ID retrieving ID. Found %s"
+                 % (volume_id_or_name, volume_id))
+        return volume_id
+
     def _validate_size(self, size, from_unit, to_unit):
         """
         Validate and convert volume size.  Volume size is limited to multiples
@@ -306,15 +325,11 @@ class ScaleIO(object):
     def _unmap_volume(self, volume_id, sdc_guid=None, unmap_all=False):
         """
         Private method unmaps a volume from one or all SDCs.
-        :param volume_id: Volume id
+        :param volume_id: ScaleIO volume ID
         :param sdc_guid: Unique SDC identifier
         :param unmap_all: True, unmap from all SDCs, False only unmap from local SDC
         :return: Nothing
         """
-
-        if not is_id(volume_id):
-            volume_id = self.get_volumeid(volume_name=volume_id)
-            LOG.warn("SIOLIB -> Parameter is not a valid ID retrieving ID for _unmap_volume. Found %s" % volume_id)
 
         if not unmap_all:
             if not sdc_guid:
@@ -349,15 +364,11 @@ class ScaleIO(object):
     def _map_volume(self, volume_id, sdc_guid=None, map_all=True):
         """
         Private method maps a volume to a SDC
-        :param volume_id: Volume id
+        :param volume_id: ScaleIO volume ID
         :param sdc_guid: Unique SDC identifier supplied by drv_cfg utility
         :param map_all: True, map volume to all configured SDCs. False only map to local SDC.
         :return: Nothing
         """
-
-        if not is_id(volume_id):
-            volume_id = self.get_volumeid(volume_name=volume_id)
-            LOG.warn("SIOLIB -> Parameter is not a valid ID retrieving ID for _map_volume. Found %s" % volume_id)
 
         # Check if sdc configured if not do not perform map
         if not sdc_guid and not map_all:
@@ -388,9 +399,9 @@ class ScaleIO(object):
 
     def get_volumeid(self, volume_name):
         """
-        Return volume id given a unique string volume name
-        :param volume_name: Unique 32 character string name of Volume
-        :return: Id of volume
+        Return ScaleIO volume ID given a unique string volume name
+        :param volume_name: Unique 32 character string name of the volume
+        :return: ScaleIO ID of volume
         """
 
         volume_id = None
@@ -398,9 +409,6 @@ class ScaleIO(object):
         if not volume_name:
             raise ValueError(
                 "Invalid volume_name parameter, volume_name=%s" % volume_name)
-
-        if is_id(volume_name):
-            return volume_name
 
         r_uri = "/api/types/Volume/instances/getByName::" + encode_string(volume_name, double=True)
         # make HTTP RESTful API request to ScaleIO gw
@@ -418,60 +426,44 @@ class ScaleIO(object):
             raise Error("Error resolving volume name '%s' to id: %s"
                         % (volume_name, req.json().get('message')))
 
-    def get_volumepath(self, volume_id):
+    def get_volumepath(self, volume_id_or_name):
         """
         Return the volume path
-        :param volume_id: ScaleIO volume id
+        :param volume_id_or_name: ScaleIO volume ID or volume name
         :return: Path of volume mapped on local host
         """
 
-        if not is_id(volume_id):
-            volume_id = self.get_volumeid(volume_name=volume_id)
-            LOG.warn("SIOLIB -> Parameter is not a valid ID retrieving ID for get_volumepath. Found %s" % volume_id)
-
-        volume_object = self.volume(volume_id)
+        volume_object = self.volume(volume_id_or_name)
         return volume_object.volume_path()
 
-    def get_volumeparts(self, volume_id):
+    def get_volumeparts(self, volume_id_or_name):
         """
         Return all partitions associated with volume
-        :param volume_id:
+        :param volume_id_or_name: ScaleIO volume ID or volume name
         :return:
         """
 
-        if not is_id(volume_id):
-            LOG.warn("SIOLIB -> Parameter is not a valid ID retrieving ID for get_volumeparts. Found %s" % volume_id)
-            volume_id = self.get_volumeid(volume_name=volume_id)
-
-        volume_object = self.volume(volume_id)
+        volume_object = self.volume(volume_id_or_name)
         return volume_object.volume_partitions()
 
-    def get_volumesize(self, volume_id):
+    def get_volumesize(self, volume_id_or_name):
         """
         Return the volume size in kb
-        :param volume_id: ScaleIO volume id
+        :param volume_id_or_name: ScaleIO volume ID or volume name
         :return: Integer containing voluem size in kilobytes
         """
 
-        if not is_id(volume_id):
-            volume_id = self.get_volumeid(volume_name=volume_id)
-            LOG.warn("SIOLIB -> Parameter is not a valid ID retrieving ID for get_volumesize. Found %s" % volume_id)
-
-        volume_object = self.volume(volume_id)
+        volume_object = self.volume(volume_id_or_name)
         return int(volume_object.sizeInKb)
 
-    def get_volumename(self, volume_id):
+    def get_volumename(self, volume_id_or_name):
         """
         Return the ScaleIO volume name
-        :param volume_id: ScaleIO volume id
+        :param volume_id_or_name: ScaleIO volume ID or volume name
         :return: String name of ScaleIO volume
         """
 
-        if not is_id(volume_id):
-            volume_id = self.get_volumeid(volume_name=volume_id)
-            LOG.warn("SIOLIB -> Parameter is not a valid ID retrieving ID for get_volumename. Found %s" % volume_id)
-
-        volume_object = self.volume(volume_id)
+        volume_object = self.volume(volume_id_or_name)
         return volume_object.name
 
     def create_volume(self, volume_name, protection_domain, storage_pool, provisioning_type='thick', volume_size_gb=8):
@@ -532,8 +524,8 @@ class ScaleIO(object):
 
         return volume_id, volume_name
 
-    def delete_volume(self, volume_name=None, include_descendents=False, only_descendents=False, vtree=False,
-                      unmap_on_delete=False, force_delete=True):
+    def delete_volume(self, volume_id_or_name, include_descendents=False, only_descendents=False,
+                      vtree=False, unmap_on_delete=False, force_delete=True):
         """
         Delete a volume. This command removes a ScaleIO volume. Before
         removing a volume, you must ensure that it is not mapped to any SDCs.
@@ -545,7 +537,7 @@ class ScaleIO(object):
 
         Note: Removal of a volume erases all the data on the corresponding volume.
 
-        :param volume_name: Name of the volume you want to delete
+        :param volume_id_or_name: ScaleIO volume ID or volume name
         :param include_descendents: Remove volume along with any descendents
         :param only_descendents: Remove only the descendents of the volume
         :param vtree: Remove the entire VTREE
@@ -554,15 +546,7 @@ class ScaleIO(object):
         :return: Nothing
         """
 
-        if not volume_name:
-            raise ValueError(
-                "Invalid volume_name parameter, volume_name=%s" % volume_name)
-
-        if not is_id(volume_name):
-            volume_id = self.get_volumeid(volume_name=volume_name)
-            LOG.warn("SIOLIB -> Parameter is not a valid ID retrieving ID for delete_volume. Found %s" % volume_id)
-        else:
-            volume_id = self.get_volumeid(volume_name=volume_name)
+        volume_id = self._validate_volume_id(volume_id_or_name)
 
         # if no other option set True assume only me
         if not any((include_descendents, only_descendents, vtree)):
@@ -579,7 +563,7 @@ class ScaleIO(object):
             LOG.info("SIOLIB -> Unmap before delete flag True, "
                      "attempting to unmap volume from all sdcs before deletion")
             try:
-                self._unmap_volume(volume_id=volume_id, unmap_all=True)
+                self._unmap_volume(volume_id, unmap_all=True)
             except VolumeNotMapped:
                 pass
 
@@ -599,20 +583,18 @@ class ScaleIO(object):
             raise Error("Error removing volume '%s': %s"
                         % (volume_id, req.json().get('message')))
 
-    def extend_volume(self, volume_id, volume_size_gb):
+    def extend_volume(self, volume_id_or_name, volume_size_gb):
         """
         Extend the volume size.  Extend a volume in multiples of 8GB.
         Increases the capacity of a volume. You can increase
         (but not decrease) a volume capacity at any time,
         as long as there is enough capacity for the volume size to grow.
-        :param volume_id: Id of volume to extend
+        :param volume_id_or_name: ScaleIO volume ID or volume name
         :param volume_size_gb: New volume size in GB
         :return: Nothing
         """
 
-        if not is_id(volume_id):
-            volume_id = self.get_volumeid(volume_name=volume_id)
-            LOG.warn("SIOLIB -> Parameter is not a valid ID retrieving ID for extend_volume. Found %s" % volume_id)
+        volume_id = self._validate_volume_id(volume_id_or_name)
 
         # extend requires size in GB, so we will convert and check size is
         # multiple of 8GB
@@ -637,28 +619,26 @@ class ScaleIO(object):
             raise Error("Error extending volume '%s': %s"
                         % (volume_id, req.json().get('message')))
 
-    def snapshot_volume(self, volume_name, origin_volume_id):
+    def snapshot_volume(self, volume_id_or_name, snapshot_name):
         """
         Snapshot an existing volume. The ScaleIO storage system
         enables you to take snapshots of existing volumes,
         up to 31 per volume. The snapshots are thinly provisioned
         and are extremely quick. Once a snapshot is generated,
         it becomes a new, unmapped volume in the system.
-        :param volume_name: Name of of snapshot
-        :param origin_volume_id: Id of volume to snapshot
+        :param volume_id_or_name: ScaleIO volume ID or volume name
+        :param snapshot_name: Name of the snapshot
         :return: Tuple containing the volume id of snapshot and volume list
         """
 
-        snapshot_gid = volume_list = None
-        if not origin_volume_id:
+        volume_id = self._validate_volume_id(volume_id_or_name)
+        if not snapshot_name:
             raise ValueError(
-                "Invalid volume_id parameter, volume_id=%s" % origin_volume_id)
-        if not volume_name:
-            raise ValueError(
-                "Invalid snapshot volume_name parameter, volume_name=%s" % volume_name)
+                "Invalid snapshot snapshot_name parameter, snapshot_name=%s" % snapshot_name)
 
+        snapshot_gid = volume_list = None
         params = {
-            'snapshotDefs': [{"volumeId": origin_volume_id, "snapshotName": volume_name}]}
+            'snapshotDefs': [{"volumeId": volume_id, "snapshotName": snapshot_name}]}
 
         LOG.debug("SIOLIB -> snapshot volume params=%r" % params)
         r_uri = "/api/instances/System/action/snapshotVolumes"
@@ -670,51 +650,42 @@ class ScaleIO(object):
             volume_list = req.json().get('volumeIdList')
         elif req.json().get('errorCode') == VOLUME_ALREADY_EXISTS:
             raise VolumeExists("Volume name '%s' already exists, cannot make snapshot '%s'"
-                               % (volume_name, origin_volume_id))
+                               % (snapshot_name, volume_id))
         else:
             raise Error("Error making snapshot '%s' of volume '%s': %s"
-                        % (volume_name, origin_volume_id, req.json().get('message')))
+                        % (snapshot_name, volume_id, req.json().get('message')))
 
         return snapshot_gid, volume_list
 
-    def detach_volume(self, volume_id, sdc_guid=None, unmap_all=False):
+    def detach_volume(self, volume_id_or_name, sdc_guid=None, unmap_all=False):
         """
         Detach volume from SDC
-        :param volume_id: Id of volume to detach
+        :param volume_id_or_name: ScaleIO volume ID or volume name
         :param unmap_all: True unmap from all SDC's, False only unmap from local SDC
         :return: Nothing
         """
 
-        if not is_id(volume_id):
-            volume_id = self.get_volumeid(volume_name=volume_id)
-            LOG.warn("SIOLIB -> Parameter is not a valid ID retrieving ID for detach_volume. Found %s" % volume_id)
-
-        # unmap
+        volume_id = self._validate_volume_id(volume_id_or_name)
         self._unmap_volume(volume_id, sdc_guid=sdc_guid, unmap_all=unmap_all)
 
-    def attach_volume(self, volume_id, sdc_guid):
+    def attach_volume(self, volume_id_or_name, sdc_guid):
         """
         Attach a volume to a SDC
-        :param volume_id: If of volume to attach
+        :param volume_id_or_name: ScaleIO volume ID or volume name
         :return: Nothing
         """
 
-        if not is_id(volume_id):
-            volume_id = self.get_volumeid(volume_name=volume_id)
-            LOG.warn("SIOLIB -> Parameter is not a valid ID retrieving ID for attach_volume. Found %s" % volume_id)
-        # map
+        volume_id = self._validate_volume_id(volume_id_or_name)
         self._map_volume(volume_id, sdc_guid=sdc_guid)
 
-    def rename_volume(self, volume_id, new_volume_name):
+    def rename_volume(self, volume_id_or_name, new_volume_name):
         """
         Rename an existing volume
-        :param volume_id: If of volume to remove
+        :param volume_id_or_name: ScaleIO volume ID or volume name
         :param new_volume_name: New volume name
         :return: Nothing
         """
-        if not is_id(volume_id):
-            volume_id = self.get_volumeid(volume_name=volume_id)
-            LOG.warn("SIOLIB -> Parameter is not a valid ID retrieving ID for rename_volume. Found %s" % volume_id)
+        volume_id = self._validate_volume_id(volume_id_or_name)
 
         params = {'newName': new_volume_name}
 
@@ -734,16 +705,14 @@ class ScaleIO(object):
             raise Error("Error renaming volume '%s' to '%s': %s"
                         % (volume_id, new_volume_name, req.json().get('message')))
 
-    def volume(self, volume_id):
+    def volume(self, volume_id_or_name):
         """
         Return a ScaleIOVolume object
-        :param volume_id: Id of volume to generate volume object from
+        :param volume_id_or_name: ScaleIO volume ID or volume name
         :return: ScaleIOVolume object or None if no valid volume found
         """
 
-        if not is_id(volume_id):
-            volume_id = self.get_volumeid(volume_name=volume_id)
-            LOG.warn("SIOLIB -> Parameter is not a valid ID retrieving ID for volume. Found %s" % volume_id)
+        volume_id = self._validate_volume_id(volume_id_or_name)
 
         volume_obj = None
 
