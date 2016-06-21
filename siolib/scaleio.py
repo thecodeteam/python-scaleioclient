@@ -244,42 +244,52 @@ class ScaleIO(object):
 
         return new_size
 
-    def _get_pdid(self, pd_name):
+    def _get_pdid(self, protection_domain):
         """
         Private method retrieves the ScaleIO protection domain ID. ScaleIO objects
         are assigned a unique ID that can be used to identify the object.
-        :param pd_name: Unique 32 character string name of Protection Domain
-        :return: Protection domain id
+        :param protection_domain: Unique 32 character string name of Protection Domain
+        :return: Protection domain ID
         """
 
+        if not protection_domain:
+            raise ValueError(
+                "Invalid protection_domain parameter, protection_domain=%s" % protection_domain)
+
         # request uri to retrieve pd id
-        r_uri = "/api/types/Domain/instances/getByName::" + pd_name
+        r_uri = "/api/types/Domain/instances/getByName::" + encode_string(protection_domain, double=True)
         # make HTTP RESTful API request to ScaleIO gw
         req = api_request(op=HttpAction.GET, host=self.host_addr,
                           uri=r_uri, data=None, auth=self.auth,
                           token=self.server_authtoken)
         if req.status_code <> 200:
-            raise Error("Error retrieving ScaleIO protection domain ID for %s: %s" % (pd_name, req.content))
+            raise Error("Error retrieving ScaleIO protection domain ID for %s: %s"
+                        % (protection_domain, req.content))
 
         return req.json()
 
-    def _get_spid(self, sp_name, pd_id):
+    def _get_spid(self, storage_pool, pd_id):
         """
         Private method retrieves the ScaleIO storage pool ID. ScaleIO objects
         are assigned a unique ID that can be used to identify the object.
-        :param sp_name: Unique 32 character string name of Storage Pool
+        :param storage_pool: Unique 32 character string name of Storage Pool
         :param pd_id: Protection domain id associated with storage pool
         :return: Storage pool id
         """
 
+        if not storage_pool:
+            raise ValueError(
+                "Invalid storage_pool parameter, storage_pool=%s" % storage_pool)
+
         # request uri to retrieve sp id
-        r_uri = "/api/types/Pool/instances/getByName::" + pd_id + "," + sp_name
+        r_uri = "/api/types/Pool/instances/getByName::" + pd_id + "," + encode_string(storage_pool, double=True)
         # make HTTP RESTful API request to ScaleIO gw
         req = api_request(op=HttpAction.GET, host=self.host_addr,
                           uri=r_uri, data=None, auth=self.auth,
                           token=self.server_authtoken)
         if req.status_code <> 200:
-            raise Error("Error retrieving ScaleIO storage pool ID for %s: %s" % (sp_name, req.content))
+            raise Error("Error retrieving ScaleIO storage pool ID for %s: %s"
+                        % (storage_pool, req.content))
 
         return req.json()
 
@@ -704,6 +714,13 @@ class ScaleIO(object):
         :return: Tuple used_bytes, total_bytes, free_bytes
         """
 
+        if not protection_domain:
+            raise ValueError(
+                "Invalid protection_domain parameter, protection_domain=%s" % protection_domain)
+        if not storage_pool:
+            raise ValueError(
+                "Invalid storage_pool parameter, storage_pool=%s" % storage_pool)
+
         used_bytes = 0
         total_bytes = 0
         free_bytes = 0
@@ -718,7 +735,7 @@ class ScaleIO(object):
         r_uri = "/api/types/StoragePool/instances/action/querySelectedStatistics"
         r_uri2 = "/api/types/ProtectionDomain/instances/action/querySelectedStatistics"
         params = {"ids": [sp_id], "properties": ["capacityInUseInKb", "capacityLimitInKb"]}
-        params2 = {"ids": [pd_id ], "properties": ["numOfSds"]}
+        params2 = {"ids": [pd_id], "properties": ["numOfSds"]}
         req = api_request(op=HttpAction.POST, host=self.host_addr,
                           uri=r_uri, data=params, auth=self.auth,
                           token=self.server_authtoken)
@@ -775,10 +792,17 @@ class ScaleIO(object):
 
         return (used_kb, total_kb, free_kb)
 
-    def get_pool_id(self, pool_name, domain_name):
+    def get_pool_id(self, protection_domain, storage_pool):
+
+        if not protection_domain:
+            raise ValueError(
+                "Invalid protection_domain parameter, protection_domain=%s" % protection_domain)
+        if not storage_pool:
+            raise ValueError(
+                "Invalid storage_pool parameter, storage_pool=%s" % storage_pool)
 
         r_uri = "/api/types/StoragePool/instances/action/queryIdByKey"
-        params = {'name':pool_name, 'protectionDomainName':domain_name}
+        params = {'name':storage_pool, 'protectionDomainName':protection_domain}
         req = api_request(op=HttpAction.POST, host=self.host_addr,
                           uri=r_uri, data=params, auth=self.auth,
                           token=self.server_authtoken)
@@ -786,7 +810,7 @@ class ScaleIO(object):
         if req.status_code == 200:
             pool_id = req.json()
         else:
-            LOG.error("SIOLIB -> Pool %s not found: %s" % (pool_name, req.json().get('message')))
+            LOG.error("SIOLIB -> Pool %s not found: %s" % (storage_pool, req.json().get('message')))
             raise LookupError("SIOLIB -> Error retrieving Pool ID: %s" % (req.json().get('message')))
 
         return pool_id
