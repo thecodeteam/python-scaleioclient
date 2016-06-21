@@ -24,8 +24,7 @@ from os.path import exists
 from time import sleep
 from siolib import VOL_TYPE
 from siolib.utilities import check_size, UnitSize, encode_string, in_container, is_id
-from siolib.httphelper import HttpAction, request, basicauth, Token
-from time import time
+from siolib.httphelper import HttpAction, api_request, Token
 
 import logging
 LOG = logging.getLogger(__name__)
@@ -68,44 +67,6 @@ class VolumeNotMapped(Error):
 
 class SizeTooSmall(Error):
     pass
-
-
-@basicauth
-def api_request(**kwargs):
-    """
-    Perform a HTTP RESTful request call. If Token is passed in, it will be updated
-    correctly because Python passes values by reference.
-    :param op: HttpAction GET, PUT, POST, DELETE
-    :param uri: HTTP resource endpoint
-    :param host: RESTful gateway host ip
-    :param data: HTTP Payload (optional)
-    :param auth: HTTP basic authentication credentials (optional)
-    :param token: HTTP token (optional)
-    :return: HTTP request object
-    """
-
-    # attempt to use gw 1 token
-    server_authtoken = kwargs.get('token')
-    username, _ = kwargs.get('auth')
-    auth = (username, server_authtoken.token)
-    start_time = time()
-
-    req = request(op=kwargs.get('op'), addr=kwargs.get('host'),
-                  uri=kwargs.get('uri'), auth=auth,
-                  data=kwargs.get('data', {}))
-
-    if req.status_code == 401:
-        server_authtoken.valid(force_expire=True)
-        api_request(**kwargs)
-        req = request(op=kwargs.get('op'), addr=kwargs.get('host'),
-                  uri=kwargs.get('uri'), auth=auth,
-                  data=kwargs.get('data', {}))
-
-    elapsed = time() - start_time
-    # FIXME: set to debug after deployed and tested in a dev environment
-    LOG.debug("SIOLIB: (api_request) Response Code == {0}, elapsed=={1}".format(req.status_code, elapsed))
-
-    return req
 
 
 class _ScaleIOVolume(object):

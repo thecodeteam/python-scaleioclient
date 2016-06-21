@@ -31,14 +31,16 @@ from time import time
 from datetime import datetime, timedelta
 from siolib.utilities import eval_compat
 import requests
+import logging
 
 try:
-    import logging
     logging.getLogger("requests").setLevel(logging.WARNING)
     # only valid if using request v2.7 or greater
     requests.packages.urllib3.disable_warnings()  # disable warnings
 except:
     pass
+
+LOG = logging.getLogger(__name__)
 
 # script scaleio (as of v1.30) constants
 API_LOGIN = 'api/login'
@@ -80,6 +82,45 @@ def basicauth(func):
         return ret
 
     return auth
+
+
+@basicauth
+def api_request(**kwargs):
+    """
+    Perform a HTTP RESTful request call. If Token is passed in, it will be updated
+    correctly because Python passes values by reference.
+    :param op: HttpAction GET, PUT, POST, DELETE
+    :param uri: HTTP resource endpoint
+    :param host: RESTful gateway host ip
+    :param data: HTTP Payload (optional)
+    :param auth: HTTP basic authentication credentials (optional)
+    :param token: HTTP token (optional)
+    :return: HTTP request object
+    """
+
+    # attempt to use gw 1 token
+    server_authtoken = kwargs.get('token')
+    username, _ = kwargs.get('auth')
+    auth = (username, server_authtoken.token)
+    start_time = time()
+
+    req = request(op=kwargs.get('op'), addr=kwargs.get('host'),
+                  uri=kwargs.get('uri'), auth=auth,
+                  data=kwargs.get('data', {}))
+
+    if req.status_code == 401:
+        server_authtoken.valid(force_expire=True)
+        api_request(**kwargs)
+        req = request(op=kwargs.get('op'), addr=kwargs.get('host'),
+                  uri=kwargs.get('uri'), auth=auth,
+                  data=kwargs.get('data', {}))
+
+    elapsed = time() - start_time
+    # FIXME: set to debug after deployed and tested in a dev environment
+    LOG.debug("SIOLIB: (api_request) Response Code == {0}, elapsed=={1}".format(req.status_code, elapsed))
+
+    return req
+
 
 def request(op, addr, uri, data=None, headers=None, auth=None):
     """
