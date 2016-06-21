@@ -256,47 +256,6 @@ class LRUCache(object):
             # item is not found in cache return False
             return False
 
-def parse_value(value):
-
-    if is_openstack_id(value):
-        print "OPENSTACK ID FOUND"
-        # base 64 encode and return
-        value = encode_base64(value)
-
-    return value
-
-def is_openstack_id(value):
-
-    valid_identifier = False
-    # UUID regex
-    uuid_regx = re.compile("^[a-f0-9]{8}-?[a-f0-9]{4}-?4[a-f0-9]{3}-?[89ab][a-f0-9]{3}-?[a-f0-9]{12}\Z", re.IGNORECASE)
-    # GUID regex
-    guid_regex = re.compile("[A-Z0-9]{8}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{12}", re.IGNORECASE)
-
-    # check if value is a UUID if True convert to hex
-    uuid_match = uuid_regx.match(value)
-    if uuid_match:
-        valid_identifier = True
-
-    guid_match = guid_regex.match(value)
-    if guid_match:
-        valid_identifier = True
-
-    return valid_identifier
-
-def is_sio_native(value):
-
-    valid_identifier = False
-    # Base64 regex
-    b64_regx = re.compile("^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$")
-
-    #
-    b64_match = b64_regx.match(value)
-    if b64_match:
-        valid_identifier = True
-
-    return valid_identifier
-
 def is_id(value):
 
     try:

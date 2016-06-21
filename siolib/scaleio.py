@@ -21,10 +21,9 @@ ScaleIO API library
 
 from os import listdir
 from os.path import exists
-from functools import wraps
 from time import sleep
 from siolib import VOL_TYPE
-from siolib.utilities import check_size, UnitSize, encode_string, in_container, parse_value, is_id
+from siolib.utilities import check_size, UnitSize, encode_string, in_container, is_id
 from siolib.httphelper import HttpAction, request, basicauth, Token
 from time import time
 
@@ -69,90 +68,6 @@ class VolumeNotMapped(Error):
 
 class SizeTooSmall(Error):
     pass
-
-
-def urlencode_volume(func):
-    """
-    Decorator used to properly encode a volume name so that it may be used
-    in RESTful HTTP request calls.  Since ScaleIO volume names are base 64
-    encoded, we must make the url safe too.
-    :param func: Function to decorate
-    :return: URL encoded volume name
-    """
-
-    @wraps(func)
-    def encode(*args, **kwargs):
-        """
-        Encode string to safe URL format
-        :param args: Function arguments
-        :param kwargs: Function keyword arguments
-        :return: URL safe encoded string
-        """
-
-        use_args = False
-        xargs = list(args)
-
-        # if args present expecting the
-        # first argument to be the volume_name string
-        if len(args) > 1:
-            use_args = True
-            volume_name = xargs.pop(1)
-        else:
-            volume_name = kwargs.get('volume_name')
-
-        volume_name = parse_value(volume_name)
-        encoded_volume_name = encode_string(volume_name, double=True)
-        if use_args:  # url encode base64 string and re-insert args
-            xargs.insert(1, encoded_volume_name)
-        else:
-            kwargs['volume_name'] = encoded_volume_name
-        # call decorated function
-        ret = func(*xargs, **kwargs)
-        # return decorated function result
-        return ret
-    # return outer wrapper
-    return encode
-
-def b64encode_volume(func):
-    """
-    Decorator used to properly encode a string value into base64 value.  All ScaleIO
-    volumes are stored in base64 format
-    :param func: Function to decorate
-    :return: Base 64 encoded string
-    """
-
-    @wraps(func)
-    def encode(*args, **kwargs):
-        """
-        Encode string to base 64 format
-        :param args: Function arguments
-        :param kwargs: Function keyword arguments
-        :return: Base 64 encoded string
-        """
-
-        use_args = False
-        xargs = list(args)
-
-        # if args present expecting the
-        # first argument to be the volume_name string
-        if len(args) > 1:
-            use_args = True
-            volume_name = xargs.pop(1)
-        else:
-            volume_name = kwargs.get('volume_name')
-
-        volume_name = parse_value(volume_name)
-        # string is already base 16 re-insert args
-        if use_args:
-            xargs.insert(1, volume_name)
-        else:
-            kwargs['volume_name'] = volume_name
-        # call decorated function
-        ret = func(*xargs, **kwargs)
-        # return decorated function result
-        return ret
-    # return outer wrapper
-    return encode
 
 
 @basicauth
@@ -471,7 +386,6 @@ class ScaleIO(object):
             raise Error("Error mapping volume '%s': %s"
                         % (volume_id, req.json().get('message')))
 
-    @urlencode_volume
     def get_volumeid(self, volume_name):
         """
         Return volume id given a unique string volume name
@@ -485,26 +399,24 @@ class ScaleIO(object):
             raise ValueError(
                 "Invalid volume_name parameter, volume_name=%s" % volume_name)
 
-        try:
-            int(volume_name, 16) # already hex id passed in do nothing
-            volume_id = volume_name
-        except ValueError: # string name get the id
-            r_uri = "/api/types/Volume/instances/getByName::" + volume_name
-            # make HTTP RESTful API request to ScaleIO gw
-            req = api_request(op=HttpAction.GET, host=self.host_addr,
-                              uri=r_uri, data=None, auth=self.auth,
-                              token=self.server_authtoken)
-            if req.status_code == 200:
-                volume_id = req.json()
-                LOG.info("SIOLIB -> Retrieved volume id %s successfully" % volume_id)
-            elif req.json().get('errorCode') == RESOURCE_NOT_FOUND_ERROR:
-                raise VolumeNotFound("Volume name '%s' is not found" % volume_name)
-            else:
-                LOG.error("SIOLIB -> Error retreiving volume id: %s" % (req.json().get('message')))
-                raise Error("Error resolving volume name '%s' to id: %s"
-                            % (volume_name, req.json().get('message')))
+        if is_id(volume_name):
+            return volume_name
 
-        return volume_id
+        r_uri = "/api/types/Volume/instances/getByName::" + encode_string(volume_name, double=True)
+        # make HTTP RESTful API request to ScaleIO gw
+        req = api_request(op=HttpAction.GET, host=self.host_addr,
+                          uri=r_uri, data=None, auth=self.auth,
+                          token=self.server_authtoken)
+        if req.status_code == 200:
+            volume_id = req.json()
+            LOG.info("SIOLIB -> Retrieved volume id %s successfully" % volume_id)
+            return volume_id
+        elif req.json().get('errorCode') == RESOURCE_NOT_FOUND_ERROR:
+            raise VolumeNotFound("Volume name '%s' is not found" % volume_name)
+        else:
+            LOG.error("SIOLIB -> Error retreiving volume id: %s" % (req.json().get('message')))
+            raise Error("Error resolving volume name '%s' to id: %s"
+                        % (volume_name, req.json().get('message')))
 
     def get_volumepath(self, volume_id):
         """
@@ -562,7 +474,6 @@ class ScaleIO(object):
         volume_object = self.volume(volume_id)
         return volume_object.name
 
-    @b64encode_volume
     def create_volume(self, volume_name, protection_domain, storage_pool, provisioning_type='thick', volume_size_gb=8):
         """
         Add a volume. You can create a volume when the requested capacity is
@@ -621,7 +532,6 @@ class ScaleIO(object):
 
         return volume_id, volume_name
 
-    @b64encode_volume
     def delete_volume(self, volume_name=None, include_descendents=False, only_descendents=False, vtree=False,
                       unmap_on_delete=False, force_delete=True):
         """
@@ -727,7 +637,6 @@ class ScaleIO(object):
             raise Error("Error extending volume '%s': %s"
                         % (volume_id, req.json().get('message')))
 
-    @b64encode_volume
     def snapshot_volume(self, volume_name, origin_volume_id):
         """
         Snapshot an existing volume. The ScaleIO storage system
