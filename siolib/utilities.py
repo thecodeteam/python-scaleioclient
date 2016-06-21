@@ -20,8 +20,6 @@
 #    under the License.
 
 from base64 import b16decode, b64encode, urlsafe_b64encode
-from collections import OrderedDict
-from time import time
 import enum
 import uuid
 import math
@@ -186,75 +184,6 @@ def check_size(size, unit_from, unit_to):
 
     return int(new_size), int(block_size)
 
-class LRUCache(object):
-
-    def __init__(self, cache_size, expiry_sec=60*10):
-        """
-        Create a simple LRU cache with expiration
-        :param cache_size: Size of the LRU cache to create
-        :param expiry_sec: Time in which item in cache expires
-        :return: LRUCache object
-        """
-
-        # All items will expire at some point regardless of access
-        # this will prevent stale data in the cache.
-        # We use an ordered dictionary because it keeps track
-        # of when an item is added to the cache.  If we add an
-        # item and the capacity is > max, we will purge the oldest
-        # last item added to the cache.
-
-        self.size = cache_size
-        self.expiry = expiry_sec
-        # ordered dict containing cache items
-        self.lru = OrderedDict()
-        # ordered dict containing the time cached entry was inserted
-        self.lru_access_time = OrderedDict()
-
-    def set(self, key, value):
-        """
-        Add item to the LRUCache. If item being added exceeds cache capacity
-        remove the last (oldest) item added in the cache.
-        :param key: Unique key of item to set in cache
-        :param value: Item to add to cache
-        :return: Nothing
-        """
-
-        try:
-            self.lru.pop(key=key)
-        except KeyError:
-            if len(self.lru) >= self.size:
-                self.lru.popitem(last=False)
-                self.lru_access_time.pop(key=key)
-
-        self.lru_access_time[key] = time()
-        self.lru[key] = value
-
-    def get(self, key):
-        """
-        Return cached item in LRUCache. Will return False if item has been
-        evicted or the cache is stale.
-        :param key: Unique key of item to retrieve from cache
-        :return: Item in cache
-        """
-
-        try:
-            # get current time stamp
-            now = time()
-            # check accesstime of entry if expiry, evsict and return False
-            expiry = self.lru_access_time[key]
-            if now - expiry > self.expiry:
-                # Pop item from cache
-                self.lru_access_time.pop(key=key)
-                self.lru.pop(key=key)
-                return False
-            else:
-                value = self.lru[key]# get item from cache
-                self.lru_access_time[key] = time()
-
-            return value
-        except KeyError:
-            # item is not found in cache return False
-            return False
 
 def is_id(value):
 
