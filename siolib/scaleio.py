@@ -657,6 +657,9 @@ class ScaleIO(object):
         :return: Nothing
         """
         volume_id = self._validate_volume_id(volume_id_or_name)
+        if not new_volume_name:
+            raise ValueError(
+                "Invalid new_volume_name parameter, volume_name=%s" % new_volume_name)
 
         params = {'newName': new_volume_name}
 
