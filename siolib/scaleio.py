@@ -808,22 +808,3 @@ class ScaleIO(object):
             volume_names.append(volume['name'])
 
         return volume_names
-
-    @property
-    def server_authtoken(self):
-        """
-        HTTP Token object property getter
-        :return: Token object
-        """
-
-        return self._server_authtoken
-
-    @server_authtoken.setter
-    def server_authtoken(self, token):
-        """
-        HTTP Token object property setter
-        :param token: Token object
-        :return: Nothing
-        """
-
-        self._server_authtoken = token
