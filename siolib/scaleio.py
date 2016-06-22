@@ -368,6 +368,34 @@ class ScaleIO(object):
             raise Error("Error mapping volume '%s': %s"
                         % (volume_id, req.json().get('message')))
 
+    def _volume(self, volume_id_or_name):
+        """
+        Return a ScaleIOVolume object
+        :param volume_id_or_name: ScaleIO volume ID or volume name
+        :return: ScaleIOVolume object or None if no valid volume found
+        """
+
+        volume_id = self._validate_volume_id(volume_id_or_name)
+
+        volume_obj = None
+
+        r_uri = "/api/instances/Volume::" + volume_id
+        # make HTTP RESTful API request to ScaleIO gw
+        req = api_request(op=HttpAction.GET, host=self.host_addr,
+                      uri=r_uri, data=None, auth=self.auth,
+                      token=self.server_authtoken)
+        if req.status_code == 200:  # success
+            LOG.info("SIOLIB --> Retrieved volume object %s successfully" % volume_id)
+            volume_obj = _ScaleIOVolume(req.json())
+        elif req.json().get('errorCode') == VOLUME_NOT_FOUND_ERROR:
+            raise VolumeNotFound("Volume %s is not found" % volume_id)
+        else:
+            LOG.error("SIOLIB -> Error retrieving volume object: %s" % (req.json().get('message')))
+            raise Error("Error retrieving volume '%s': %s"
+                        % (volume_id, req.json().get('message')))
+
+        return volume_obj
+
     def get_volumeid(self, volume_name):
         """
         Return ScaleIO volume ID given a unique string volume name
@@ -404,7 +432,7 @@ class ScaleIO(object):
         :return: Path of volume mapped on local host
         """
 
-        volume_object = self.volume(volume_id_or_name)
+        volume_object = self._volume(volume_id_or_name)
         return volume_object.volume_path()
 
     def get_volumeparts(self, volume_id_or_name):
@@ -414,7 +442,7 @@ class ScaleIO(object):
         :return:
         """
 
-        volume_object = self.volume(volume_id_or_name)
+        volume_object = self._volume(volume_id_or_name)
         return volume_object.volume_partitions()
 
     def get_volumesize(self, volume_id_or_name):
@@ -424,7 +452,7 @@ class ScaleIO(object):
         :return: Integer containing voluem size in kilobytes
         """
 
-        volume_object = self.volume(volume_id_or_name)
+        volume_object = self._volume(volume_id_or_name)
         return int(volume_object.sizeInKb)
 
     def get_volumename(self, volume_id_or_name):
@@ -434,7 +462,7 @@ class ScaleIO(object):
         :return: String name of ScaleIO volume
         """
 
-        volume_object = self.volume(volume_id_or_name)
+        volume_object = self._volume(volume_id_or_name)
         return volume_object.name
 
     def create_volume(self, volume_name, protection_domain, storage_pool, provisioning_type='thick', volume_size_gb=8):
@@ -678,34 +706,6 @@ class ScaleIO(object):
             LOG.error("SIOLIB -> Error renaming volume: %s" % (req.json().get('message')))
             raise Error("Error renaming volume '%s' to '%s': %s"
                         % (volume_id, new_volume_name, req.json().get('message')))
-
-    def volume(self, volume_id_or_name):
-        """
-        Return a ScaleIOVolume object
-        :param volume_id_or_name: ScaleIO volume ID or volume name
-        :return: ScaleIOVolume object or None if no valid volume found
-        """
-
-        volume_id = self._validate_volume_id(volume_id_or_name)
-
-        volume_obj = None
-
-        r_uri = "/api/instances/Volume::" + volume_id
-        # make HTTP RESTful API request to ScaleIO gw
-        req = api_request(op=HttpAction.GET, host=self.host_addr,
-                      uri=r_uri, data=None, auth=self.auth,
-                      token=self.server_authtoken)
-        if req.status_code == 200:  # success
-            LOG.info("SIOLIB --> Retrieved volume object %s successfully" % volume_id)
-            volume_obj = _ScaleIOVolume(req.json())
-        elif req.json().get('errorCode') == VOLUME_NOT_FOUND_ERROR:
-            raise VolumeNotFound("Volume %s is not found" % volume_id)
-        else:
-            LOG.error("SIOLIB -> Error retrieving volume object: %s" % (req.json().get('message')))
-            raise Error("Error retrieving volume '%s': %s"
-                        % (volume_id, req.json().get('message')))
-
-        return volume_obj
 
     def storagepool_size(self, protection_domain, storage_pool):
         """
