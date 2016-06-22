@@ -19,20 +19,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from base64 import b16decode, b64encode, urlsafe_b64encode
 import enum
-import uuid
 import math
 import re
-
-class ProvisionType(enum.Enum):
-
-    """
-    Enumeration object to aid in setting op functions for HTTP requests
-    """
-
-    THICK = 'ThickProvisioned'
-    THIN = 'ThinProvisioned'
 
 class UnitSize(enum.Enum):
 
@@ -41,51 +30,6 @@ class UnitSize(enum.Enum):
     MBYTE = 1048576
     GBYTE = 1024
     TBYTE = 1
-
-def encode_base64(value):
-    """
-    Binary to text encoding of a string into a base 64
-    using a radix-numerical system. Function is idempotent.
-    :param value: String value to encode into base64
-    :return: Base64 encoded ASCII string
-    """
-
-    from string import maketrans
-    # UUID regex
-    uuid_regx = re.compile("^[a-f0-9]{8}-?[a-f0-9]{4}-?4[a-f0-9]{3}-?[89ab][a-f0-9]{3}-?[a-f0-9]{12}\Z", re.IGNORECASE)
-    # GUID regex
-    guid_regex = re.compile("[A-Z0-9]{8}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{12}", re.IGNORECASE)
-    # Base64 regex
-    b64_regx = re.compile("^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$")
-    # store value it may already be encoded
-    encoded_name = value
-
-    # check if value is a UUID if True convert to hex
-    uuid_match = uuid_regx.match(value)
-    if uuid_match:
-        value = uuid.UUID(uuid_match.group(0)).hex
-    # check if value is a GUID (GUID is just a MS impelentation of UUID)
-    guid_match = guid_regex.match((value))
-    if guid_match:
-        value = uuid.UUID(guid_match.group(0)).hex
-    # Use translation table to remove hyphens - and
-    # underscores _ these are invalid b64 characters
-    trans_tbl = maketrans("-_", "+/")
-    value = str(value).translate(trans_tbl)
-
-    try:
-        # if string is hex decode first
-        name = b16decode(value.upper())
-        # encode now in base 64
-        encoded_name = b64encode(name)
-    except TypeError: # b16 decode failure
-        # check if passed in string is already base64
-        b64_match = b64_regx.match(value)
-        if not b64_match:
-            # if string is not hex and not b64 create a new b64 string
-            encoded_name = urlsafe_b64encode(uuid.uuid4().bytes) # generate a valid b64 value
-
-    return  encoded_name
 
 def encode_string(value, double=False):
     """
