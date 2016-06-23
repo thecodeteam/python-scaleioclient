@@ -22,7 +22,6 @@ ScaleIO API library
 from os import listdir
 from os.path import exists
 from time import sleep
-from siolib import VOL_TYPE
 from siolib.utilities import check_size, UnitSize, encode_string, in_container, is_id
 from siolib.httphelper import HttpAction, api_request, Token
 
@@ -67,6 +66,11 @@ class VolumeNotMapped(Error):
 
 class SizeTooSmall(Error):
     pass
+
+
+# ScaleIO volume provision type constant
+VOL_TYPE = {"thickprovisioned": "ThickProvisioned", "thinprovisioned": "ThinProvisioned",
+            "thick": "ThickProvisioned", "thin": "ThinProvisioned"}
 
 
 class _ScaleIOVolume(object):

@@ -23,7 +23,3 @@ RESTful API.
 This module is a stand alone module and may be used by any tool
 to manage ScaleIO volumes.
 """
-
-# ScaleIO volume provision type constant
-VOL_TYPE = {"thickprovisioned": "ThickProvisioned", "thinprovisioned": "ThinProvisioned",
-            "thick": "ThickProvisioned", "thin": "ThinProvisioned"}
