@@ -1,9 +1,5 @@
 # -*- coding: utf-8 -*-
 
-"""
-ScaleIO API library
-"""
-
 # Copyright (c) 2015 - 2016 EMC Corporation.
 # All Rights Reserved.
 #
@@ -18,6 +14,10 @@ ScaleIO API library
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+
+"""
+ScaleIO API library
+"""
 
 from os import listdir
 from os.path import exists

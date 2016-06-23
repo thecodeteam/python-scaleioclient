@@ -1,14 +1,5 @@
 # -*- coding: utf-8 -*-
 
-""" ScaleIO API base library
-
-This package provides a module for wrapping the ScaleIO HTTP
-RESTful API.
-
-This module is a stand alone module and may be used by any tool
-to manage ScaleIO volumes.
-"""
-
 # Copyright (c) 2015 - 2016 EMC Corporation.
 # All Rights Reserved.
 #
@@ -23,6 +14,15 @@ to manage ScaleIO volumes.
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+
+""" ScaleIO API base library
+
+This package provides a module for wrapping the ScaleIO HTTP
+RESTful API.
+
+This module is a stand alone module and may be used by any tool
+to manage ScaleIO volumes.
+"""
 
 # ScaleIO volume provision type constant
 VOL_TYPE = {"thickprovisioned": "ThickProvisioned", "thinprovisioned": "ThinProvisioned",

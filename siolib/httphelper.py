@@ -1,9 +1,5 @@
 # -*- coding: utf-8 -*-
 
-"""
- HTTP helper script for communicating with RESTful services
-"""
-
 # Copyright (c) 2015 - 2016 EMC Corporation.
 # All Rights Reserved.
 #
@@ -18,6 +14,10 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
+
+"""
+ HTTP helper script for communicating with RESTful services
+"""
 
 from __future__ import print_function
 from enum import Enum
