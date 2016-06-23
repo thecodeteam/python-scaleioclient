@@ -15,44 +15,41 @@
 
 """ Python distutils setup for siolib distribution """
 
-import textwrap
-from glob import glob
+import os
 from setuptools import setup
 
-distribution_name = "siolib"
-main_module_name = 'siolib'
-main_module = __import__(main_module_name)
-version = main_module.__version__
 
-main_module_doc = main_module.__doc__.decode('utf-8')
-short_description, long_description = (
-    textwrap.dedent(desc).strip()
-    for desc in main_module_doc.split('\n\n', 1)
-    )
+def read(fname):
+    return open(os.path.join(os.path.dirname(__file__), fname)).read()
+
 
 setup(
-    name=distribution_name,
-    version=version,
-    description=short_description,
-    license=main_module.__license__,
-    author=main_module.__author__,
-    author_email=main_module.__author_email__,
-    long_description=long_description,
+    name='siolib',
+    version='2.0.0.dev1',
+    description='ScaleIO API base library',
+    license='ASL 2.0',
+    author='Cloudscaling (EMC)',
+    author_email='openstack@cloudscaling.com',
+    long_description=read('README.md'),
     packages=['siolib'],
-    include_package_data=True,
-    test_suite="tests.unit.suite",
     classifiers=[
         # Reference: http://pypi.python.org/pypi?%3Aaction=list_classifiers
-        "Development Status :: 2 - Pre-Alpha",
-        "Programming Language :: Python",
-        "Topic :: Software Development :: Libraries :: Python Modules",
-        "Operating System :: OS Independent",
-        "Intended Audience :: Developers",
-        "License :: OSI Approved :: Apache Software License"],
+        'Development Status :: 2 - Pre-Alpha',
+        'Intended Audience :: Developers',
+        'Operating System :: OS Independent',
+        'Programming Language :: Python',
+        'Programming Language :: Python :: 2',
+        'Programming Language :: Python :: 2.7',
+        'Topic :: Software Development :: Libraries :: Python Modules',
+        'License :: OSI Approved :: Apache Software License'],
     install_requires=[
+        'enum34',
         'requests',
         'urllib3',
-        'enum34',
+        'six',
     ],
-    scripts=glob("tests/functional/*"),
+    keywords=[
+        'emc',
+        'scaleio'
+    ],
 )

@@ -1,4 +1,5 @@
 .venv
+build
 dist
 siolib.egg-info
 *.pyc

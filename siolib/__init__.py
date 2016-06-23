@@ -24,21 +24,6 @@ to manage ScaleIO volumes.
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-__version__ = "1.6.0.dev1"
-__license__ = "Apache Software License, Version 2.0"
-__author__ = "Cloudscaling (EMC)"
-__author_email__ = "openstack@cloudscaling.com"
-__company__ = "EMC Corporation"
-_copyright_year_begin = "2015"
-__date__ = "2016-05-30"
-_copyright_year_latest = __date__.split('-')[0]
-_copyright_year_range = _copyright_year_begin
-if _copyright_year_latest > _copyright_year_begin:
-    _copyright_year_range += "–%(_copyright_year_latest)s" % vars()
-__copyright__ = (
-    "Copyright © %(_copyright_year_range)s"
-    " %(__company__)s") % vars()
-
 # ScaleIO volume provision type constant
 VOL_TYPE = {"thickprovisioned": "ThickProvisioned", "thinprovisioned": "ThinProvisioned",
             "thick": "ThickProvisioned", "thin": "ThinProvisioned"}
