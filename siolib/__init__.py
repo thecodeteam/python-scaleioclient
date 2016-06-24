@@ -38,8 +38,7 @@ __copyright__ = (
 from oslo_config import cfg
 
 # ScaleIO volume provision type constant
-VOL_TYPE = {"thickprovisioned": "ThickProvisioned", "thinprovisioned": "ThinProvisioned",
-            "thick": "ThickProvisioned", "thin": "ThinProvisioned"}
+VOL_TYPE = {"thickprovisioned": "ThickProvisioned", "thinprovisioned": "ThinProvisioned"}
 
 SIOGROUP = cfg.OptGroup(name='scaleio',
                         title='ScaleIO Configuration Values')
@@ -87,7 +86,7 @@ SIOOPTS = [
     cfg.StrOpt('server_certificate_path',
                help='Path to the certificate to use if verify_certificate is set True'),
     cfg.StrOpt('provisioning_type',
-               default="thick",
+               default="ThickProvisioned",
                help='Define volumes as thick, where the entire capacity '
                     'is provisioned for storage, or thin, where only the '
                     'capacity currently needed is provisioned.'),
