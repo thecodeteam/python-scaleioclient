@@ -20,7 +20,7 @@ to manage ScaleIO volumes.
 # it is provided by or on behalf of EMC.
 #
 
-__version__ = "1.4.5"
+__version__ = "1.5.5"
 __license__ = "emc"
 __author__ = "Ryan Hobbs"
 __author_email__ = "ryan.hobbs@emc.com"
