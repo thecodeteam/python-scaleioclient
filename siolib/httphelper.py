@@ -26,7 +26,6 @@ from os.path import join as path_join
 from functools import wraps
 from requests.auth import HTTPBasicAuth
 from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.poolmanager import PoolManager
 from time import time
 from datetime import datetime, timedelta
 from siolib.utilities import eval_compat
@@ -46,6 +45,9 @@ LOG = logging.getLogger(__name__)
 API_LOGIN = 'api/login'
 API_GW_LOGIN = 'api/gatewayLogin'
 REQ_TYPE = {'gw_request': API_GW_LOGIN, 'api_request': API_LOGIN}
+
+GW_REQ_TIMEOUT = 30.0
+GW_REQ_RETRIES = 4
 
 def basicauth(func):
     """
@@ -147,7 +149,7 @@ def request(op, addr, uri, data=None, headers=None, auth=None):
     user, password = auth  # split up auth tuple
     http_auth = HTTPBasicAuth(user, password)  # create HTTP basic auth object
     session = requests.Session()  # Get session
-    session.mount(u_prefix, Adapter())  # Mount to adapter
+    session.mount(u_prefix, HTTPAdapter(max_retries=GW_REQ_RETRIES))  # Mount to adapter
     #session.headers.update({'Authorization': password})
     session.headers.update(headers)  # update headers
     r_url = path_join(u_prefix, '%s:%s' % addr, uri)  # create url of request
@@ -157,9 +159,9 @@ def request(op, addr, uri, data=None, headers=None, auth=None):
     try:
         if op_value in ('put', 'post', 'patch'):
             http_resp = http_func(
-                r_url, auth=http_auth, data=dumps(data), verify=False)
+                r_url, auth=http_auth, data=dumps(data), verify=False, timeout=GW_REQ_TIMEOUT)
         else:
-            http_resp = http_func(r_url, auth=http_auth, verify=False)
+            http_resp = http_func(r_url, auth=http_auth, verify=False, timeout=GW_REQ_TIMEOUT)
         status_code = http_resp.status_code
         reason = http_resp.reason
     except requests.Timeout as err:
@@ -273,32 +275,6 @@ class Token(object):
         expire_datetime = datetime.utcnow() + timedelta(minutes=8)
         logging.warn("SIOLIB: (token) token created at at={0} expires in={1}".format(current_datetime, expire_datetime))
         self._expired = False  # new token set expiry to false
-
-class Adapter(HTTPAdapter):
-
-    """
-    The built-in HTTP Adapter for urllib3. Provides a general-case interface
-    for Requests sessions to contact HTTP and HTTPS urls by implementing the
-    Transport Adapter interface.
-    """
-
-    def init_poolmanager(self, connections, maxsize, block=False):
-        """
-        Initializes a urllib3 PoolManager.
-        :param connections: The number of urllib3 connection pools to cache.
-        :param maxsize: The maximum number of connections to save in the pool.
-        :param block: Block when no free connections are available.
-        :return:
-        """
-
-        # only exposed for use when subclassing the HTTPAdapter.
-
-        from ssl import PROTOCOL_TLSv1
-
-        self.poolmanager = PoolManager(num_pools=connections,
-                                       maxsize=maxsize,
-                                       block=block,
-                                       ssl_version=PROTOCOL_TLSv1)
 
 
 class HttpAction(Enum):
