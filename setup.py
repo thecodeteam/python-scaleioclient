@@ -45,9 +45,9 @@ setup(
         "Operating System :: OS Independent",
         "Intended Audience :: Developers",],
     install_requires=[
-        'oslo.config>=3.7.0',
-        'requests>=2.8.1,!=2.9.0',
-        'urllib3>=1.8.3',
+        'oslo.config>=3.14.0',
+        'requests>=2.10.0',
+        'urllib3>=1.15.1',
         'enum34',
     ],
     scripts=glob("tests/functional/*"),
