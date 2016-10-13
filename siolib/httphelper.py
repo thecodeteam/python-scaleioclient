@@ -22,7 +22,6 @@ from os.path import join as path_join
 from functools import wraps
 from requests.auth import HTTPBasicAuth
 from requests.adapters import HTTPAdapter
-from urllib3.poolmanager import PoolManager
 from time import time
 from datetime import datetime, timedelta
 from siolib.utilities import eval_compat
@@ -105,7 +104,7 @@ def request(op, addr, uri, data=None, headers=None, auth=None):
     user, password = auth  # split up auth tuple
     http_auth = HTTPBasicAuth(user, password)  # create HTTP basic auth object
     session = requests.Session()  # Get session
-    session.mount(u_prefix, Adapter(max_retries=GW_REQ_RETRIES))  # Mount to adapter
+    session.mount(u_prefix, HTTPAdapter(max_retries=GW_REQ_RETRIES))  # Mount to adapter
     #session.headers.update({'Authorization': password})
     session.headers.update(headers)  # update headers
     r_url = path_join(u_prefix, '%s:%s' % addr, uri)  # create url of request
@@ -231,32 +230,6 @@ class Token(object):
         expire_datetime = datetime.utcnow() + timedelta(minutes=8)
         logging.warn("SIOLIB: (token) token created at at={0} expires in={1}".format(current_datetime, expire_datetime))
         self._expired = False  # new token set expiry to false
-
-class Adapter(HTTPAdapter):
-
-    """
-    The built-in HTTP Adapter for urllib3. Provides a general-case interface
-    for Requests sessions to contact HTTP and HTTPS urls by implementing the
-    Transport Adapter interface.
-    """
-
-    def init_poolmanager(self, connections, maxsize, block=False):
-        """
-        Initializes a urllib3 PoolManager.
-        :param connections: The number of urllib3 connection pools to cache.
-        :param maxsize: The maximum number of connections to save in the pool.
-        :param block: Block when no free connections are available.
-        :return:
-        """
-
-        # only exposed for use when subclassing the HTTPAdapter.
-
-        from ssl import PROTOCOL_TLSv1
-
-        self.poolmanager = PoolManager(num_pools=connections,
-                                       maxsize=maxsize,
-                                       block=block,
-                                       ssl_version=PROTOCOL_TLSv1)
 
 
 class HttpAction(Enum):
