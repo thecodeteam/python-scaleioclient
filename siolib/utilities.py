@@ -23,6 +23,7 @@ import enum
 import math
 import re
 
+
 class UnitSize(enum.Enum):
 
     BYTE = 1099511627776
@@ -30,6 +31,7 @@ class UnitSize(enum.Enum):
     MBYTE = 1048576
     GBYTE = 1024
     TBYTE = 1
+
 
 def encode_string(value, double=False):
     """
@@ -46,37 +48,42 @@ def encode_string(value, double=False):
     from urllib import quote
     # Replace special characters in string using the %xx escape
     encoded_str = quote(value, '')
-    if double: # double encode
+    if double:  # double encode
         encoded_str = quote(encoded_str, '')
 
     return encoded_str
+
 
 def in_container():
     """
     Check if we are running inside a container.  Check cgroups to determine if
     we are running inside a container.
 
-    :return: Boolean True, running in a container False, not running in a container
+    :return: Boolean True, running in a container False, not running in
+             a container
     """
 
     containerized = False
-    cn_match =  re.compile('.*?' + '(docker)|(lxc)', re.IGNORECASE|re.DOTALL)
+    cn_match = re.compile('.*?' + '(docker)|(lxc)', re.IGNORECASE | re.DOTALL)
     try:
         with open("/proc/1/cgroup") as cgroup_out:
-            match = cn_match.search(cgroup_out.read()) # stop at first match
+            match = cn_match.search(cgroup_out.read())  # stop at first match
             if match:
-                print("ScaleIO OpenStack Nova LibVirt driver is running inside of a {0} container.".format(match.group(1)))
+                print("ScaleIO OpenStack Nova LibVirt driver is running "
+                      "inside of a {0} container.".format(match.group(1)))
                 containerized = True
     except IOError:
-        pass # do nothing if we are not running in a container
+        pass  # do nothing if we are not running in a container
 
     return containerized
+
 
 def eval_compat(enumarg):
     if hasattr(enumarg, 'value'):
         return enumarg.value
     else:
         return enumarg
+
 
 def check_size(size, unit_from, unit_to):
 
@@ -96,7 +103,7 @@ def check_size(size, unit_from, unit_to):
             block_size = 8
         if int(unit_to) == eval_compat(UnitSize.TBYTE):
             block_size = 0.0078125
-    elif int(unit_from) > int(unit_to): # division
+    elif int(unit_from) > int(unit_to):  # division
         if int(unit_to) == eval_compat(UnitSize.BYTE):
             new_size = size
             block_size = 8589934592
@@ -112,7 +119,7 @@ def check_size(size, unit_from, unit_to):
         if int(unit_to) == eval_compat(UnitSize.TBYTE):
             new_size = size / math.pow(1024, 4)
             block_size = 0.0078125
-    else: #multiplication
+    else:  # multiplication
         if int(unit_from) == eval_compat(UnitSize.KBYTE):
             new_size = size
             block_size = 8388608

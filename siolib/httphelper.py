@@ -49,10 +49,11 @@ REQ_TYPE = {'gw_request': API_GW_LOGIN, 'api_request': API_LOGIN}
 GW_REQ_TIMEOUT = 30.0
 GW_REQ_RETRIES = 4
 
+
 def basicauth(func):
     """
-    Decorator that will acquire an HTTP token that will be used for authentication
-    between the client and the ScaleIO gateway.
+    Decorator that will acquire an HTTP token that will be used for
+    authentication between the client and the ScaleIO gateway.
     :param func: Function decorated
     :return: None
     """
@@ -76,7 +77,8 @@ def basicauth(func):
             http_resp = request(op=HttpAction.GET, addr=addr,
                                 uri=r_uri, auth=httpauth)
             token.token = http_resp.text
-            logging.warn("SIOLIB: (basicauth) New ScaleIO gateway token={0}".format(http_resp.text))
+            logging.warn("SIOLIB: (basicauth) New ScaleIO gateway token={0}"
+                         .format(http_resp.text))
 
         kwargs['token'] = token
         # call function/method this decorator wraps
@@ -89,8 +91,8 @@ def basicauth(func):
 @basicauth
 def api_request(**kwargs):
     """
-    Perform a HTTP RESTful request call. If Token is passed in, it will be updated
-    correctly because Python passes values by reference.
+    Perform a HTTP RESTful request call. If Token is passed in, it will be
+    updated correctly because Python passes values by reference.
     :param op: HttpAction GET, PUT, POST, DELETE
     :param uri: HTTP resource endpoint
     :param host: RESTful gateway host ip
@@ -114,12 +116,13 @@ def api_request(**kwargs):
         server_authtoken.valid(force_expire=True)
         api_request(**kwargs)
         req = request(op=kwargs.get('op'), addr=kwargs.get('host'),
-                  uri=kwargs.get('uri'), auth=auth,
-                  data=kwargs.get('data', {}))
+                      uri=kwargs.get('uri'), auth=auth,
+                      data=kwargs.get('data', {}))
 
     elapsed = time() - start_time
     # FIXME: set to debug after deployed and tested in a dev environment
-    LOG.debug("SIOLIB: (api_request) Response Code == {0}, elapsed=={1}".format(req.status_code, elapsed))
+    LOG.debug("SIOLIB: (api_request) Response Code == {0}, elapsed=={1}"
+              .format(req.status_code, elapsed))
 
     return req
 
@@ -149,8 +152,8 @@ def request(op, addr, uri, data=None, headers=None, auth=None):
     user, password = auth  # split up auth tuple
     http_auth = HTTPBasicAuth(user, password)  # create HTTP basic auth object
     session = requests.Session()  # Get session
-    session.mount(u_prefix, HTTPAdapter(max_retries=GW_REQ_RETRIES))  # Mount to adapter
-    #session.headers.update({'Authorization': password})
+    # Mount to adapter session.headers.update({'Authorization': password})
+    session.mount(u_prefix, HTTPAdapter(max_retries=GW_REQ_RETRIES))
     session.headers.update(headers)  # update headers
     r_url = path_join(u_prefix, '%s:%s' % addr, uri)  # create url of request
 
@@ -159,26 +162,31 @@ def request(op, addr, uri, data=None, headers=None, auth=None):
     try:
         if op_value in ('put', 'post', 'patch'):
             http_resp = http_func(
-                r_url, auth=http_auth, data=dumps(data), verify=False, timeout=GW_REQ_TIMEOUT)
+                r_url, auth=http_auth, data=dumps(data), verify=False,
+                timeout=GW_REQ_TIMEOUT)
         else:
-            http_resp = http_func(r_url, auth=http_auth, verify=False, timeout=GW_REQ_TIMEOUT)
+            http_resp = http_func(r_url, auth=http_auth, verify=False,
+                                  timeout=GW_REQ_TIMEOUT)
         status_code = http_resp.status_code
         reason = http_resp.reason
     except requests.Timeout as err:
         logging.error(
             'Error: HTTP - {0} request to {1} failed'.format(repr(err), r_url))
         raise RuntimeError(
-            'httpStatusCode = {0}, reason = {1}, request timed out!'.format(status_code, reason))
+            'httpStatusCode = {0}, reason = {1}, request timed out!'
+            .format(status_code, reason))
     except requests.ConnectionError as err:
         logging.error(
             'Error: HTTP - {0} request to {1} failed'.format(repr(err), r_url))
         raise RuntimeError(
-            'httpStatusCode = {0}, reason = {1}, check connection!'.format(status_code, reason))
+            'httpStatusCode = {0}, reason = {1}, check connection!'
+            .format(status_code, reason))
     except requests.HTTPError as err:
         logging.error(
             'Error: HTTP - {0} request to {1} failed'.format(repr(err), r_url))
         raise RuntimeError(
-            'httpStatusCode = {0}, reason = {1}, check rest gateway!'.format(status_code, reason))
+            'httpStatusCode = {0}, reason = {1}, check rest gateway!'
+            .format(status_code, reason))
     except requests.RequestException as err:
         logging.error(
             'Error: HTTP - {0} request to {1} failed'.format(repr(err), r_url))
@@ -187,10 +195,10 @@ def request(op, addr, uri, data=None, headers=None, auth=None):
 
     if http_resp is not None and http_resp.status_code == 401:
         logging.error('Error: HTTP - Unauthorized request to {0}, '
-              'please check basic credentials {1}'.format(r_url, auth))
-
+                      'please check basic credentials {1}'.format(r_url, auth))
 
     return http_resp
+
 
 class Singleton(type):
     """
@@ -198,8 +206,8 @@ class Singleton(type):
     as a metaclass
     """
 
-
     _klasses = {}
+
     def __call__(self, *args, **kwargs):
         """
         Callable used to check if the class is already instanced
@@ -209,18 +217,21 @@ class Singleton(type):
         :return: Instance of class or a new instance of the class
         """
 
-        # standard design pattern for a singleton class if instance exists return
+        # standard design pattern for a singleton class if instance exists
+        # return
         if self not in self._klasses:
-            self._klasses[self] = super(Singleton, self).__call__(*args, **kwargs)
+            self._klasses[self] = super(Singleton, self).__call__(*args,
+                                                                  **kwargs)
         return self._klasses[self]
 
 
 class Token(object):
     """
-    Class represents an HTTP Token object that is used for HTTP basic authentication
+    Class represents an HTTP Token object that is used for HTTP basic
+    authentication
     """
 
-    __metaclass__ = Singleton # this class behaves like a singleton
+    __metaclass__ = Singleton  # this class behaves like a singleton
 
     def __init__(self, http_token=None):
         """
@@ -249,10 +260,11 @@ class Token(object):
             self._start_time = time()  # reset
 
         if self._expired:
-            logging.warn("SIOLIB: (token) token expired at={0}".format(datetime.utcnow()))
-            return False # token invalid
+            logging.warn("SIOLIB: (token) token expired at={0}"
+                         .format(datetime.utcnow()))
+            return False  # token invalid
         else:
-            return True # token valid
+            return True  # token valid
 
     @property
     def token(self):
@@ -273,7 +285,8 @@ class Token(object):
             self._token = value
         current_datetime = datetime.now().utcnow()
         expire_datetime = datetime.utcnow() + timedelta(minutes=8)
-        logging.warn("SIOLIB: (token) token created at at={0} expires in={1}".format(current_datetime, expire_datetime))
+        logging.warn("SIOLIB: (token) token created at at={0} expires in={1}"
+                     .format(current_datetime, expire_datetime))
         self._expired = False  # new token set expiry to false
 
 
@@ -288,4 +301,3 @@ class HttpAction(Enum):
     POST = 'post'
     PATCH = 'patch'
     DELETE = 'delete'
-
