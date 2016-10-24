@@ -33,7 +33,7 @@ import requests
 import logging
 
 try:
-    logging.getLogger("requests").setLevel(logging.WARNING)
+    logging.getLogger('requests').setLevel(logging.WARNING)
     # only valid if using request v2.7 or greater
     requests.packages.urllib3.disable_warnings()  # disable warnings
 except:
@@ -77,7 +77,7 @@ def basicauth(func):
             http_resp = request(op=HttpAction.GET, addr=addr,
                                 uri=r_uri, auth=httpauth)
             token.token = http_resp.text
-            logging.warn("SIOLIB: (basicauth) New ScaleIO gateway token={0}"
+            logging.warn('SIOLIB: (basicauth) New ScaleIO gateway token={0}'
                          .format(http_resp.text))
 
         kwargs['token'] = token
@@ -121,7 +121,7 @@ def api_request(**kwargs):
 
     elapsed = time() - start_time
     # FIXME: set to debug after deployed and tested in a dev environment
-    LOG.debug("SIOLIB: (api_request) Response Code == {0}, elapsed=={1}"
+    LOG.debug('SIOLIB: (api_request) Response Code == {0}, elapsed=={1}'
               .format(req.status_code, elapsed))
 
     return req
@@ -260,7 +260,7 @@ class Token(object):
             self._start_time = time()  # reset
 
         if self._expired:
-            logging.warn("SIOLIB: (token) token expired at={0}"
+            logging.warn('SIOLIB: (token) token expired at={0}'
                          .format(datetime.utcnow()))
             return False  # token invalid
         else:
@@ -285,7 +285,7 @@ class Token(object):
             self._token = value
         current_datetime = datetime.now().utcnow()
         expire_datetime = datetime.utcnow() + timedelta(minutes=8)
-        logging.warn("SIOLIB: (token) token created at at={0} expires in={1}"
+        logging.warn('SIOLIB: (token) token created at at={0} expires in={1}'
                      .format(current_datetime, expire_datetime))
         self._expired = False  # new token set expiry to false
 

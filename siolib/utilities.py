@@ -66,11 +66,11 @@ def in_container():
     containerized = False
     cn_match = re.compile('.*?' + '(docker)|(lxc)', re.IGNORECASE | re.DOTALL)
     try:
-        with open("/proc/1/cgroup") as cgroup_out:
+        with open('/proc/1/cgroup') as cgroup_out:
             match = cn_match.search(cgroup_out.read())  # stop at first match
             if match:
-                print("ScaleIO OpenStack Nova LibVirt driver is running "
-                      "inside of a {0} container.".format(match.group(1)))
+                print('ScaleIO OpenStack Nova LibVirt driver is running '
+                      'inside of a {0} container.'.format(match.group(1)))
                 containerized = True
     except IOError:
         pass  # do nothing if we are not running in a container
