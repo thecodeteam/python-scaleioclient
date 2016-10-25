@@ -44,6 +44,9 @@ VOLUME_CANNOT_EXTEND = 133
 DEVICE_REMOVAL_INPROGRESS = 135
 DEVICE_ALREADY_EXISTS = 206
 
+MAX_HOST_DEVICE_RENEWAL_CHECKS = 5
+HOST_DEVICE_RENEWAL_CHECK_INTERVAL = 3
+
 
 class Error(Exception):
     pass
@@ -121,13 +124,25 @@ class _ScaleIOVolume(object):
             'SIOLIB --> ScaleIO volume partitions {0}'.format(disk_devices))
         return disk_devices
 
-    def volume_path(self):
+    def _find_volume_device(self, by_id_path):
+        if exists(by_id_path):
+            devices = listdir(by_id_path)
+            for dev in devices:
+                if (dev.startswith('emc-vol') and dev.endswith(self.id)):
+                    return dev
+        return None
+
+    def volume_path(self, with_no_wait=False):
         """
         Return the device path pf a volume which is the actual
         location of the device such as /dev/scinia, or
         dev/scinix.
+        :param with_no_wait: Whether wait for the volume occures in host
+                             device list
         :return: Device path of volume
         """
+        if self.full_device_path and exists(self.full_device_path):
+            return self.full_device_path
 
         tries = 1
         disk_device = ''
@@ -138,29 +153,25 @@ class _ScaleIOVolume(object):
         else:
             by_id_path = '/dev/disk/by-id'
 
-        while not disk_device and tries <= 5:
-            if self.full_device_path and exists(self.full_device_path):
-                break  # exit loop control
-            if exists(by_id_path):
-                devices = listdir(by_id_path)
-                for dev in devices:
-                    if (dev.startswith('emc-vol') and dev.endswith(self.id)):
-                        disk_device = dev
-            if not disk_device:
-                tries = tries + 1
-                sleep(3)
+        if with_no_wait:
+            return by_id_path + '/' + self._find_volume_device(by_id_path)
 
-        if disk_device:
-            LOG.info(
-                'SIOLIB --> ScaleIO device path found {0}'.format(disk_device))
-            self.full_device_path = by_id_path + '/' + disk_device
-        else:
+        while not disk_device and tries <= MAX_HOST_DEVICE_RENEWAL_CHECKS:
+            disk_device = self._find_volume_device(by_id_path)
+            if not disk_device:
+                tries += 1
+                sleep(HOST_DEVICE_RENEWAL_CHECK_INTERVAL)
+
+        if not disk_device:
             LOG.warn(
                 'SIOLIB --> ScaleIO device path not found {0}'
                 .format(disk_device))
             raise VolumeNotMapped(
                 "Device path is not found for volume '%s'" % self.id)
 
+        LOG.info(
+            'SIOLIB --> ScaleIO device path found {0}'.format(disk_device))
+        self.full_device_path = by_id_path + '/' + disk_device
         return self.full_device_path
 
 
@@ -468,15 +479,17 @@ class ScaleIO(object):
             raise Error("Error resolving volume name '%s' to id: %s"
                         % (volume_name, req.json().get('message')))
 
-    def get_volumepath(self, volume_id_or_name):
+    def get_volumepath(self, volume_id_or_name, with_no_wait=False):
         """
         Return the volume path
         :param volume_id_or_name: ScaleIO volume ID or volume name
+        :param with_no_wait: Whether wait for the volume occures in host
+                             device list
         :return: Path of volume mapped on local host
         """
 
         volume_object = self._volume(volume_id_or_name)
-        return volume_object.volume_path()
+        return volume_object.volume_path(with_no_wait)
 
     def get_volumeparts(self, volume_id_or_name):
         """
