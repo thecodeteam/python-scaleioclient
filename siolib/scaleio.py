@@ -274,6 +274,16 @@ class ScaleIO(object):
 
         return new_size
 
+    def _get(self, r_uri):
+        return api_request(op=HttpAction.GET, host=self.host_addr,
+                           uri=r_uri, data=None, auth=self.auth,
+                           token=self.server_authtoken)
+
+    def _post(self, r_uri, params=None):
+        return api_request(op=HttpAction.POST, host=self.host_addr,
+                           uri=r_uri, data=params, auth=self.auth,
+                           token=self.server_authtoken)
+
     def _get_pdid(self, protection_domain):
         """
         Private method retrieves the ScaleIO protection domain ID. ScaleIO
@@ -292,10 +302,7 @@ class ScaleIO(object):
         # request uri to retrieve pd id
         r_uri = '/api/types/Domain/instances/getByName::' + \
             encode_string(protection_domain, double=True)
-        # make HTTP RESTful API request to ScaleIO gw
-        req = api_request(op=HttpAction.GET, host=self.host_addr,
-                          uri=r_uri, data=None, auth=self.auth,
-                          token=self.server_authtoken)
+        req = self._get(r_uri)
         if req.status_code != 200:
             raise Error('Error retrieving ScaleIO protection domain ID '
                         'for %s: %s'
@@ -320,10 +327,7 @@ class ScaleIO(object):
         # request uri to retrieve sp id
         r_uri = '/api/types/Pool/instances/getByName::' + \
             pd_id + ',' + encode_string(storage_pool, double=True)
-        # make HTTP RESTful API request to ScaleIO gw
-        req = api_request(op=HttpAction.GET, host=self.host_addr,
-                          uri=r_uri, data=None, auth=self.auth,
-                          token=self.server_authtoken)
+        req = self._get(r_uri)
         if req.status_code != 200:
             raise Error('Error retrieving ScaleIO storage pool ID for %s: %s'
                         % (storage_pool, req.content))
@@ -358,10 +362,7 @@ class ScaleIO(object):
         LOG.debug('SIOLIB -> unmap volume params=%r' % params)
         r_uri = '/api/instances/Volume::' + \
             volume_id + '/action/removeMappedSdc'
-        # make HTTP RESTful API request to ScaleIO gw
-        req = api_request(op=HttpAction.POST, host=self.host_addr,
-                          uri=r_uri, data=params, auth=self.auth,
-                          token=self.server_authtoken)
+        req = self._post(r_uri, params=params)
         if req.status_code == 200:  # success
             LOG.info('SIOLIB -> Unmapped volume %s successfully' % volume_id)
         elif req.json().get('errorCode') == VOLUME_NOT_MAPPED_ERROR:
@@ -399,10 +400,7 @@ class ScaleIO(object):
 
         LOG.debug('SIOLIB -> map volume params=%r' % params)
         r_uri = '/api/instances/Volume::' + volume_id + '/action/addMappedSdc'
-        # make HTTP RESTful API request to ScaleIO gw
-        req = api_request(op=HttpAction.POST, host=self.host_addr,
-                          uri=r_uri, data=params, auth=self.auth,
-                          token=self.server_authtoken)
+        req = self._post(r_uri, params=params)
         if req.status_code == 200:  # success
             LOG.info('SIOLIB -> Mapped volume %s successfully' % volume_id)
         elif req.json().get('errorCode') == VOLUME_ALREADY_MAPPED_ERROR:
@@ -428,10 +426,7 @@ class ScaleIO(object):
         volume_obj = None
 
         r_uri = '/api/instances/Volume::' + volume_id
-        # make HTTP RESTful API request to ScaleIO gw
-        req = api_request(op=HttpAction.GET, host=self.host_addr,
-                          uri=r_uri, data=None, auth=self.auth,
-                          token=self.server_authtoken)
+        req = self._get(r_uri)
         if req.status_code == 200:  # success
             LOG.info(
                 'SIOLIB --> Retrieved volume object %s successfully'
@@ -462,10 +457,7 @@ class ScaleIO(object):
 
         r_uri = '/api/types/Volume/instances/getByName::' + \
             encode_string(volume_name, double=True)
-        # make HTTP RESTful API request to ScaleIO gw
-        req = api_request(op=HttpAction.GET, host=self.host_addr,
-                          uri=r_uri, data=None, auth=self.auth,
-                          token=self.server_authtoken)
+        req = self._get(r_uri)
         if req.status_code == 200:
             volume_id = req.json()
             LOG.info('SIOLIB -> Retrieved volume id %s successfully' %
@@ -566,10 +558,7 @@ class ScaleIO(object):
         LOG.debug('SIOLIB -> creating volume params=%r' % params)
 
         r_uri = '/api/types/Volume/instances'
-        # make HTTP RESTful API request to ScaleIO gw
-        req = api_request(op=HttpAction.POST, host=self.host_addr,
-                          uri=r_uri, data=params, auth=self.auth,
-                          token=self.server_authtoken)
+        req = self._post(r_uri, params=params)
         LOG.debug('SIOLIB -> request to create volume returned %s' % req)
         if req.status_code == 200:
             volume_id = req.json().get('id')
@@ -628,10 +617,7 @@ class ScaleIO(object):
                 pass
 
         r_uri = '/api/instances/Volume::' + volume_id + '/action/removeVolume'
-        # make HTTP RESTful API request to ScaleIO gw
-        req = api_request(op=HttpAction.POST, host=self.host_addr,
-                          uri=r_uri, data=params, auth=self.auth,
-                          token=self.server_authtoken)
+        req = self._post(r_uri, params=params)
         if req.status_code == 200:
             LOG.info('SIOLIB -> Removed volume %s successfully' % volume_id)
         elif req.json().get('errorCode') == VOLUME_NOT_FOUND_ERROR:
@@ -664,10 +650,7 @@ class ScaleIO(object):
 
         LOG.debug('SIOLIB -> extend volume params=%r' % params)
         r_uri = '/api/instances/Volume::' + volume_id + '/action/setVolumeSize'
-        # make HTTP RESTful API request to ScaleIO gw
-        req = api_request(op=HttpAction.POST, host=self.host_addr,
-                          uri=r_uri, data=params, auth=self.auth,
-                          token=self.server_authtoken)
+        req = self._post(r_uri, params=params)
         if req.status_code == 200:
             LOG.info('SIOLIB -> Extended volume size %s successfully new size '
                      'is %s GB' % (volume_id, volume_size_gb))
@@ -706,9 +689,7 @@ class ScaleIO(object):
 
         LOG.debug('SIOLIB -> snapshot volume params=%r' % params)
         r_uri = '/api/instances/System/action/snapshotVolumes'
-        req = api_request(op=HttpAction.POST, host=self.host_addr,
-                          uri=r_uri, data=params, auth=self.auth,
-                          token=self.server_authtoken)
+        req = self._post(r_uri, params=params)
         if req.status_code == 200:
             snapshot_gid = req.json().get('snapshotGroupId')
             volume_list = req.json().get('volumeIdList')
@@ -762,10 +743,7 @@ class ScaleIO(object):
 
         LOG.debug('SIOLIB -> rename volume params=%r' % params)
         r_uri = '/api/instances/Volume::' + volume_id + '/action/setVolumeName'
-        # make HTTP RESTful API request to ScaleIO gw
-        req = api_request(op=HttpAction.POST, host=self.host_addr,
-                          uri=r_uri, data=params, auth=self.auth,
-                          token=self.server_authtoken)
+        req = self._post(r_uri, params=params)
         if req.status_code == 200:  # success
             LOG.info('SIOLIB -> Renamed volume %s successfully' % volume_id)
         elif req.json().get('errorCode') == VOLUME_ALREADY_EXISTS:
@@ -816,12 +794,8 @@ class ScaleIO(object):
         params = {'ids': [sp_id],
                   'properties': ['capacityInUseInKb', 'capacityLimitInKb']}
         params2 = {'ids': [pd_id], 'properties': ['numOfSds']}
-        req = api_request(op=HttpAction.POST, host=self.host_addr,
-                          uri=r_uri, data=params, auth=self.auth,
-                          token=self.server_authtoken)
-        req2 = api_request(op=HttpAction.POST, host=self.host_addr,
-                           uri=r_uri2, data=params2, auth=self.auth,
-                           token=self.server_authtoken)
+        req = self._post(r_uri, params=params)
+        req2 = self._post(r_uri2, params=params2)
 
         # FIXME: Redo all of this must be a better and more efficient way
         if req.status_code == 200 and req2.status_code == 200:
@@ -859,9 +833,7 @@ class ScaleIO(object):
         r_uri = '/api/types/System/instances/action/querySelectedStatistics'
         params = {'ids': [],
                   'properties': ['capacityInUseInKb', 'capacityLimitInKb']}
-        req = api_request(op=HttpAction.POST, host=self.host_addr,
-                          uri=r_uri, data=params, auth=self.auth,
-                          token=self.server_authtoken)
+        req = self._post(r_uri, params=params)
         if req.status_code == 200:
             used_kb = req.json().get('capacityInUseInKb')
             total_kb = req.json().get('capacityLimitInKb')
@@ -888,10 +860,7 @@ class ScaleIO(object):
         r_uri = '/api/types/StoragePool/instances/action/queryIdByKey'
         params = {
             'name': storage_pool, 'protectionDomainName': protection_domain}
-        req = api_request(op=HttpAction.POST, host=self.host_addr,
-                          uri=r_uri, data=params, auth=self.auth,
-                          token=self.server_authtoken)
-
+        req = self._post(r_uri, params=params)
         if req.status_code == 200:
             pool_id = req.json()
         else:
@@ -907,10 +876,7 @@ class ScaleIO(object):
 
         volume_names = []
         r_uri = '/api/types/Volume/instances'
-        req = api_request(op=HttpAction.GET, host=self.host_addr,
-                          uri=r_uri, auth=self.auth,
-                          token=self.server_authtoken)
-
+        req = self._get(r_uri)
         if req.status_code != 200:
             LOG.error('SIOLIB -> Error listing volumes: %s' %
                       (req.json().get('message')))
