@@ -20,17 +20,19 @@
 """
 
 from __future__ import print_function
-from enum import Enum
-from json import dumps
-from os.path import join as path_join
-from functools import wraps
-from requests.auth import HTTPBasicAuth
-from requests.adapters import HTTPAdapter
-from time import time
-from datetime import datetime, timedelta
-from siolib.utilities import eval_compat
-import requests
+
+import datetime
+import enum
+import functools
+import json
 import logging
+import os.path
+import requests
+from requests import adapters
+from requests import auth
+import time
+
+from siolib import utilities
 
 try:
     logging.getLogger('requests').setLevel(logging.WARNING)
@@ -58,7 +60,7 @@ def basicauth(func):
     :return: None
     """
 
-    @wraps(func)
+    @functools.wraps(func)
     def auth(*args, **kwargs):
         """
         Check if Token is valid, if not create a new Token
@@ -106,7 +108,7 @@ def api_request(**kwargs):
     server_authtoken = kwargs.get('token')
     username, _ = kwargs.get('auth')
     auth = (username, server_authtoken.token)
-    start_time = time()
+    start_time = time.time()
 
     req = request(op=kwargs.get('op'), addr=kwargs.get('host'),
                   uri=kwargs.get('uri'), auth=auth,
@@ -119,7 +121,7 @@ def api_request(**kwargs):
                       uri=kwargs.get('uri'), auth=auth,
                       data=kwargs.get('data', {}))
 
-    elapsed = time() - start_time
+    elapsed = time.time() - start_time
     # FIXME: set to debug after deployed and tested in a dev environment
     LOG.debug('SIOLIB: (api_request) Response Code == {0}, elapsed=={1}'
               .format(req.status_code, elapsed))
@@ -145,24 +147,25 @@ def request(op, addr, uri, data=None, headers=None, auth=None):
     headers = headers or {'Content-Type': 'application/json'}
 
     # enum34 handles things differently than enum0.4.4
-    op_value = eval_compat(op)
+    op_value = utilities.eval_compat(op)
 
     # always remove slashes at beginning of uri
     uri = uri.strip('/')
     user, password = auth  # split up auth tuple
-    http_auth = HTTPBasicAuth(user, password)  # create HTTP basic auth object
+    # create HTTP basic auth object
+    http_auth = auth.HTTPBasicAuth(user, password)
     session = requests.Session()  # Get session
     # Mount to adapter session.headers.update({'Authorization': password})
-    session.mount(u_prefix, HTTPAdapter(max_retries=GW_REQ_RETRIES))
+    session.mount(u_prefix, adapters.HTTPAdapter(max_retries=GW_REQ_RETRIES))
     session.headers.update(headers)  # update headers
-    r_url = path_join(u_prefix, '%s:%s' % addr, uri)  # create url of request
+    r_url = os.path.join(u_prefix, '%s:%s' % addr, uri)  # create request url
 
     http_func = getattr(session, op_value)  # get request method
 
     try:
         if op_value in ('put', 'post', 'patch'):
             http_resp = http_func(
-                r_url, auth=http_auth, data=dumps(data), verify=False,
+                r_url, auth=http_auth, data=json.dumps(data), verify=False,
                 timeout=GW_REQ_TIMEOUT)
         else:
             http_resp = http_func(r_url, auth=http_auth, verify=False,
@@ -253,15 +256,15 @@ class Token(object):
         Token property getter
         """
 
-        _current_time = time()
+        _current_time = time.time()
 
         if _current_time - self._start_time > 60*8 or force_expire:  # 8 min
             self._expired = True
-            self._start_time = time()  # reset
+            self._start_time = time.time()  # reset
 
         if self._expired:
             logging.warn('SIOLIB: (token) token expired at={0}'
-                         .format(datetime.utcnow()))
+                         .format(datetime.datetime.utcnow()))
             return False  # token invalid
         else:
             return True  # token valid
@@ -283,14 +286,15 @@ class Token(object):
             self._token = value.strip('"')  # strip extra double quotes
         else:
             self._token = value
-        current_datetime = datetime.now().utcnow()
-        expire_datetime = datetime.utcnow() + timedelta(minutes=8)
+        current_datetime = datetime.datetime.now().utcnow()
+        expire_datetime = (datetime.datetime.utcnow() +
+                           datetime.timedelta(minutes=8))
         logging.warn('SIOLIB: (token) token created at at={0} expires in={1}'
                      .format(current_datetime, expire_datetime))
         self._expired = False  # new token set expiry to false
 
 
-class HttpAction(Enum):
+class HttpAction(enum.Enum):
 
     """
     Enumeration object to aid in setting op functions for HTTP requests

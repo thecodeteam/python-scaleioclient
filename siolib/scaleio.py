@@ -19,14 +19,13 @@
 ScaleIO API library
 """
 
-from os import listdir
-from os.path import exists
-from time import sleep
-from siolib.utilities import check_size, UnitSize, encode_string, in_container
-from siolib.utilities import is_id
-from siolib.httphelper import HttpAction, api_request, Token
-
 import logging
+import os.path
+import time
+
+from siolib import utilities
+from siolib import httphelper
+
 LOG = logging.getLogger(__name__)
 
 # ScaleIO error constants
@@ -81,7 +80,7 @@ VOL_TYPE = {'thickprovisioned': 'ThickProvisioned',
 DEVICES_PATH_ON_HOST = '/dev/disk/by-id'
 DEVICES_PATH_IN_CONTAINER = '/var/scaleio/dev/disk/by-id'
 
-if in_container():
+if utilities.in_container():
     LOCAL_DEVICES_PATH = DEVICES_PATH_IN_CONTAINER
 else:
     LOCAL_DEVICES_PATH = DEVICES_PATH_ON_HOST
@@ -114,7 +113,7 @@ class _ScaleIOVolume(object):
         disk_devices = []
 
         # get a list of devices
-        devices = listdir(LOCAL_DEVICES_PATH)
+        devices = os.listdir(LOCAL_DEVICES_PATH)
         for device in devices:
             if (device.startswith('emc-vol') and self.id in device and
                     'part' in device):
@@ -126,8 +125,8 @@ class _ScaleIOVolume(object):
         return disk_devices
 
     def _find_volume_device(self, by_id_path):
-        if exists(by_id_path):
-            devices = listdir(by_id_path)
+        if os.path.exists(by_id_path):
+            devices = os.listdir(by_id_path)
             for dev in devices:
                 if (dev.startswith('emc-vol') and dev.endswith(self.id)):
                     return dev
@@ -142,7 +141,7 @@ class _ScaleIOVolume(object):
                              device list
         :return: Device path of volume
         """
-        if self.full_device_path and exists(self.full_device_path):
+        if self.full_device_path and os.path.exists(self.full_device_path):
             return self.full_device_path
 
         tries = 1
@@ -156,7 +155,7 @@ class _ScaleIOVolume(object):
             disk_device = self._find_volume_device(LOCAL_DEVICES_PATH)
             if not disk_device:
                 tries += 1
-                sleep(HOST_DEVICE_RENEWAL_CHECK_INTERVAL)
+                time.sleep(HOST_DEVICE_RENEWAL_CHECK_INTERVAL)
 
         if not disk_device:
             LOG.warn(
@@ -188,7 +187,7 @@ class ScaleIO(object):
 
         self.host_addr = (rest_server_ip, str(rest_server_port))
         self.auth = (rest_server_username, rest_server_password)
-        self.server_authtoken = Token()
+        self.server_authtoken = httphelper.Token()
 
         # set the volume type thick or thin provisioned
         # Check if we will be using a certificate
@@ -239,7 +238,7 @@ class ScaleIO(object):
                 'Invalid volume_id parameter, volume_id=%s'
                 % volume_id_or_name)
 
-        if is_id(volume_id_or_name):
+        if utilities.is_id(volume_id_or_name):
             return volume_id_or_name
 
         volume_id = self.get_volumeid(volume_id_or_name)
@@ -260,7 +259,7 @@ class ScaleIO(object):
         :return:
         """
 
-        new_size, block_size = check_size(size, from_unit, to_unit)
+        new_size, block_size = utilities.check_size(size, from_unit, to_unit)
 
         # check and ensure size is a multiple of 8GB modulo op
         if new_size % block_size != 0:
@@ -271,14 +270,14 @@ class ScaleIO(object):
         return new_size
 
     def _get(self, r_uri):
-        return api_request(op=HttpAction.GET, host=self.host_addr,
-                           uri=r_uri, data=None, auth=self.auth,
-                           token=self.server_authtoken)
+        return httphelper.api_request(
+            uri=r_uri, data=None, op=httphelper.HttpAction.GET,
+            host=self.host_addr, auth=self.auth, token=self.server_authtoken)
 
     def _post(self, r_uri, params=None):
-        return api_request(op=HttpAction.POST, host=self.host_addr,
-                           uri=r_uri, data=params, auth=self.auth,
-                           token=self.server_authtoken)
+        return httphelper.api_request(
+            uri=r_uri, data=params, op=httphelper.HttpAction.POST,
+            host=self.host_addr, auth=self.auth, token=self.server_authtoken)
 
     def _get_pdid(self, protection_domain):
         """
@@ -297,7 +296,7 @@ class ScaleIO(object):
 
         # request uri to retrieve pd id
         r_uri = '/api/types/Domain/instances/getByName::' + \
-            encode_string(protection_domain, double=True)
+            utilities.encode_string(protection_domain, double=True)
         req = self._get(r_uri)
         if req.status_code != 200:
             raise Error('Error retrieving ScaleIO protection domain ID '
@@ -322,7 +321,7 @@ class ScaleIO(object):
 
         # request uri to retrieve sp id
         r_uri = '/api/types/Pool/instances/getByName::' + \
-            pd_id + ',' + encode_string(storage_pool, double=True)
+            pd_id + ',' + utilities.encode_string(storage_pool, double=True)
         req = self._get(r_uri)
         if req.status_code != 200:
             raise Error('Error retrieving ScaleIO storage pool ID for %s: %s'
@@ -452,7 +451,7 @@ class ScaleIO(object):
                 'Invalid volume_name parameter, volume_name=%s' % volume_name)
 
         r_uri = '/api/types/Volume/instances/getByName::' + \
-            encode_string(volume_name, double=True)
+            utilities.encode_string(volume_name, double=True)
         req = self._get(r_uri)
         if req.status_code == 200:
             volume_id = req.json()
@@ -542,7 +541,7 @@ class ScaleIO(object):
         # create requires size in KB, so we will convert and check size is
         # multiple of 8GB
         volume_size_kb = self._validate_size(
-            volume_size_gb, UnitSize.GBYTE, UnitSize.KBYTE)
+            volume_size_gb, utilities.UnitSize.GBYTE, utilities.UnitSize.KBYTE)
 
         # request payload containing volume create params
         params = {'protectionDomainId': pd_id,
@@ -641,7 +640,7 @@ class ScaleIO(object):
         # extend requires size in GB, so we will convert and check size is
         # multiple of 8GB
         volume_size_gb = self._validate_size(
-            volume_size_gb, UnitSize.GBYTE, UnitSize.GBYTE)
+            volume_size_gb, utilities.UnitSize.GBYTE, utilities.UnitSize.GBYTE)
         params = {'sizeInGB': str(volume_size_gb)}
 
         LOG.debug('SIOLIB -> extend volume params=%r' % params)
