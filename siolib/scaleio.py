@@ -78,6 +78,14 @@ VOL_TYPE = {'thickprovisioned': 'ThickProvisioned',
             'thick': 'ThickProvisioned',
             'thin': 'ThinProvisioned'}
 
+DEVICES_PATH_ON_HOST = '/dev/disk/by-id'
+DEVICES_PATH_IN_CONTAINER = '/var/scaleio/dev/disk/by-id'
+
+if in_container():
+    LOCAL_DEVICES_PATH = DEVICES_PATH_IN_CONTAINER
+else:
+    LOCAL_DEVICES_PATH = DEVICES_PATH_ON_HOST
+
 
 class _ScaleIOVolume(object):
 
@@ -93,8 +101,6 @@ class _ScaleIOVolume(object):
         """
 
         self.full_device_path = None
-        # True if we are running inside a container
-        self.container = in_container()
         # populate Volume object based on JSON properties
         for k, v in vol_json.iteritems():
             self.__setattr__(k, v)  # set class attribs based on json
@@ -106,18 +112,13 @@ class _ScaleIOVolume(object):
         """
 
         disk_devices = []
-        # FIXME maybe try and use filters instead of hard coded path
-        if self.container:
-            by_id_path = '/var/scaleio/dev/disk/by-id'
-        else:
-            by_id_path = '/dev/disk/by-id'
 
         # get a list of devices
-        devices = listdir(by_id_path)
+        devices = listdir(LOCAL_DEVICES_PATH)
         for device in devices:
             if (device.startswith('emc-vol') and self.id in device and
                     'part' in device):
-                full_device_path = by_id_path + '/' + device
+                full_device_path = LOCAL_DEVICES_PATH + '/' + device
                 disk_devices.append(full_device_path)
 
         LOG.info(
@@ -147,17 +148,12 @@ class _ScaleIOVolume(object):
         tries = 1
         disk_device = ''
 
-        # FIXME maybe try and use filters instead of hard coded path
-        if self.container:
-            by_id_path = '/var/scaleio/dev/disk/by-id'
-        else:
-            by_id_path = '/dev/disk/by-id'
-
         if with_no_wait:
-            return by_id_path + '/' + self._find_volume_device(by_id_path)
+            return (LOCAL_DEVICES_PATH + '/' +
+                    self._find_volume_device(LOCAL_DEVICES_PATH))
 
         while not disk_device and tries <= MAX_HOST_DEVICE_RENEWAL_CHECKS:
-            disk_device = self._find_volume_device(by_id_path)
+            disk_device = self._find_volume_device(LOCAL_DEVICES_PATH)
             if not disk_device:
                 tries += 1
                 sleep(HOST_DEVICE_RENEWAL_CHECK_INTERVAL)
@@ -171,7 +167,7 @@ class _ScaleIOVolume(object):
 
         LOG.info(
             'SIOLIB --> ScaleIO device path found {0}'.format(disk_device))
-        self.full_device_path = by_id_path + '/' + disk_device
+        self.full_device_path = LOCAL_DEVICES_PATH + '/' + disk_device
         return self.full_device_path
 
 
