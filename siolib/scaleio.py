@@ -117,7 +117,7 @@ class _ScaleIOVolume(object):
         for device in devices:
             if (device.startswith('emc-vol') and self.id in device and
                     'part' in device):
-                full_device_path = LOCAL_DEVICES_PATH + '/' + device
+                full_device_path = os.path.join(LOCAL_DEVICES_PATH, device)
                 disk_devices.append(full_device_path)
 
         LOG.info(
@@ -148,8 +148,8 @@ class _ScaleIOVolume(object):
         disk_device = ''
 
         if with_no_wait:
-            return (LOCAL_DEVICES_PATH + '/' +
-                    self._find_volume_device(LOCAL_DEVICES_PATH))
+            return os.path.join(LOCAL_DEVICES_PATH,
+                                self._find_volume_device(LOCAL_DEVICES_PATH))
 
         while not disk_device and tries <= MAX_HOST_DEVICE_RENEWAL_CHECKS:
             disk_device = self._find_volume_device(LOCAL_DEVICES_PATH)
@@ -166,7 +166,7 @@ class _ScaleIOVolume(object):
 
         LOG.info(
             'SIOLIB --> ScaleIO device path found {0}'.format(disk_device))
-        self.full_device_path = LOCAL_DEVICES_PATH + '/' + disk_device
+        self.full_device_path = os.path.join(LOCAL_DEVICES_PATH, disk_device)
         return self.full_device_path
 
 
