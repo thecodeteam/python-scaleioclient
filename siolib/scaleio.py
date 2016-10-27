@@ -721,6 +721,23 @@ class ScaleIO(object):
         volume_id = self._validate_volume_id(volume_id_or_name)
         self._map_volume(volume_id, sdc_guid=sdc_guid)
 
+    def is_volume_attached(self, volume_id_or_name, sdc_guid):
+        """
+        Check if a volume is attached to a SDC
+        :param volume_id_or_name: ScaleIO volume ID or volume name
+        :sdc_guid GUID of SDC
+        :return: True if the volume is attached to the SDC
+        """
+        volume_object = self._volume(volume_id_or_name)
+
+        params = {'ids': [si['sdcId'] for si in volume_object.mappedSdcInfo]}
+        r_uri = '/api/types/Sdc/instances/action/queryBySelectedIds'
+        req = self._post(r_uri, params=params)
+        if req.status_code != 200:
+            raise Error(
+                'Error requesting SDC: %s', req.json.get('message'))
+        return any(sdc_guid == sdc['sdcGuid'] for sdc in req.json())
+
     def rename_volume(self, volume_id_or_name, new_volume_name):
         """
         Rename an existing volume
