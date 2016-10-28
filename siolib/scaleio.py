@@ -884,9 +884,9 @@ class ScaleIO(object):
 
         return pool_id
 
-    def list_volume_names(self):
+    def list_volume_infos(self):
 
-        volume_names = []
+        infos = []
         r_uri = '/api/types/Volume/instances'
         req = self._get(r_uri)
         if req.status_code != 200:
@@ -897,6 +897,7 @@ class ScaleIO(object):
 
         volume_objects = req.json()
         for volume in volume_objects:
-            volume_names.append(volume['name'])
+            infos.append({'id': volume['id'],
+                          'name': volume['name']})
 
-        return volume_names
+        return infos
