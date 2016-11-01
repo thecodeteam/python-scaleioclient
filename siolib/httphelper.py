@@ -22,15 +22,14 @@
 from __future__ import print_function
 
 import datetime
-import enum
 import functools
 import json
 import logging
 import os.path
-import requests
-from requests import adapters
-from requests import auth
 import time
+
+import enum
+import requests
 
 from siolib import utilities
 
@@ -153,10 +152,11 @@ def request(op, addr, uri, data=None, headers=None, auth=None):
     uri = uri.strip('/')
     user, password = auth  # split up auth tuple
     # create HTTP basic auth object
-    http_auth = auth.HTTPBasicAuth(user, password)
+    http_auth = requests.auth.HTTPBasicAuth(user, password)
     session = requests.Session()  # Get session
     # Mount to adapter session.headers.update({'Authorization': password})
-    session.mount(u_prefix, adapters.HTTPAdapter(max_retries=GW_REQ_RETRIES))
+    session.mount(u_prefix,
+                  requests.adapters.HTTPAdapter(max_retries=GW_REQ_RETRIES))
     session.headers.update(headers)  # update headers
     r_url = os.path.join(u_prefix, '%s:%s' % addr, uri)  # create request url
 
