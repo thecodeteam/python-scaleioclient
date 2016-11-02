@@ -148,8 +148,11 @@ class _ScaleIOVolume(object):
         disk_device = ''
 
         if with_no_wait:
-            return os.path.join(LOCAL_DEVICES_PATH,
-                                self._find_volume_device(LOCAL_DEVICES_PATH))
+            disk_device = self._find_volume_device(LOCAL_DEVICES_PATH)
+            if disk_device:
+                return os.path.join(LOCAL_DEVICES_PATH, disk_device)
+            else:
+                return None
 
         while not disk_device and tries <= MAX_HOST_DEVICE_RENEWAL_CHECKS:
             disk_device = self._find_volume_device(LOCAL_DEVICES_PATH)
