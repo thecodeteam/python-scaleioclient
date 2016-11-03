@@ -120,8 +120,7 @@ class _ScaleIOVolume(object):
                 full_device_path = os.path.join(LOCAL_DEVICES_PATH, device)
                 disk_devices.append(full_device_path)
 
-        LOG.info(
-            'SIOLIB --> ScaleIO volume partitions {0}'.format(disk_devices))
+        LOG.debug('Found ScaleIO volume partitions %s', disk_devices)
         return disk_devices
 
     def _find_volume_device(self, by_id_path):
@@ -150,8 +149,10 @@ class _ScaleIOVolume(object):
         if with_no_wait:
             disk_device = self._find_volume_device(LOCAL_DEVICES_PATH)
             if disk_device:
+                LOG.debug('Found ScaleIO device path %s', disk_device)
                 return os.path.join(LOCAL_DEVICES_PATH, disk_device)
             else:
+                LOG.debug('No ScaleIO device path for volume %s', self.id)
                 return None
 
         while not disk_device and tries <= MAX_HOST_DEVICE_RENEWAL_CHECKS:
@@ -161,14 +162,12 @@ class _ScaleIOVolume(object):
                 time.sleep(HOST_DEVICE_RENEWAL_CHECK_INTERVAL)
 
         if not disk_device:
-            LOG.warn(
-                'SIOLIB --> ScaleIO device path not found {0}'
-                .format(disk_device))
+            LOG.warn('Could not find ScaleIO device path for volume %s',
+                     self.id)
             raise VolumeNotMapped(
                 "Device path is not found for volume '%s'" % self.id)
 
-        LOG.info(
-            'SIOLIB --> ScaleIO device path found {0}'.format(disk_device))
+        LOG.debug('Found ScaleIO device path %s', disk_device)
         self.full_device_path = os.path.join(LOCAL_DEVICES_PATH, disk_device)
         return self.full_device_path
 
@@ -237,17 +236,15 @@ class ScaleIO(object):
         :return: ScaleIO volume ID
         """
         if not volume_id_or_name:
-            raise ValueError(
-                'Invalid volume_id parameter, volume_id=%s'
-                % volume_id_or_name)
+            raise ValueError('Invalid volume_id_or_name parameter value: %s'
+                             % volume_id_or_name)
 
         if utilities.is_id(volume_id_or_name):
             return volume_id_or_name
 
+        LOG.debug('%s is not a valid ScaleIO ID, retrieving the ID by name',
+                  volume_id_or_name)
         volume_id = self.get_volumeid(volume_id_or_name)
-        LOG.info('SIOLIB -> Parameter %s is not a valid ID retrieving ID. '
-                 'Found %s'
-                 % (volume_id_or_name, volume_id))
         return volume_id
 
     def _validate_size(self, size, from_unit, to_unit):
@@ -344,71 +341,52 @@ class ScaleIO(object):
 
         if not unmap_all:
             if not sdc_guid:
-                LOG.warn('SIOLIB -> Invalid _unmap_volume invoke')
-                raise TypeError(
+                raise ValueError(
                     'sdc_guid must be specified or unmap_all must be True')
             else:
-                LOG.info(
-                    'SIOLIB -> Using ScaleIO SDC client GUID %s for '
-                    'map operation.' % sdc_guid)
+                LOG.debug('Using ScaleIO SDC client GUID %s for '
+                          'unmap operation.' % sdc_guid)
 
         if unmap_all:  # unmap from all sdcs
             params = {'allSdcs': ''}
         else:  # only unmap from local sdc
             params = {'guid': sdc_guid}
 
-        LOG.debug('SIOLIB -> unmap volume params=%r' % params)
         r_uri = '/api/instances/Volume::' + \
             volume_id + '/action/removeMappedSdc'
         req = self._post(r_uri, params=params)
         if req.status_code == 200:  # success
-            LOG.info('SIOLIB -> Unmapped volume %s successfully' % volume_id)
+            LOG.debug('Unmapped volume %s successfully', volume_id)
         elif req.json().get('errorCode') == VOLUME_NOT_MAPPED_ERROR:
-            LOG.warn('SIOLIB -> Volume cannot be unmapped: %s' %
-                     (req.json().get('message')))
+            LOG.warn('Volume %s cannot be unmapped: %s',
+                     volume_id, req.json().get('message'))
             raise VolumeNotMapped("Volume '%s' is not mapped" % volume_id)
         else:
-            LOG.error('SIOLIB -> Error unmapping volume: %s' %
-                      (req.json().get('message')))
             raise Error("Error unmapping volume '%s': %s"
                         % (volume_id, req.json().get('message')))
 
-    def _map_volume(self, volume_id, sdc_guid=None, map_all=True):
+    def _map_volume(self, volume_id, sdc_guid, allow_multi_map=True):
         """
         Private method maps a volume to a SDC
         :param volume_id: ScaleIO volume ID
         :param sdc_guid: Unique SDC identifier supplied by drv_cfg utility
-        :param map_all: True, map volume to all configured SDCs. False only
-                        map to local SDC.
+        :param allow_multi_map: Allow this volume to be mapped to another SDC.
+                                Actual for the first mapping operation only.
         :return: Nothing
         """
 
-        # Check if sdc configured if not do not perform map
-        if not sdc_guid and not map_all:
-            LOG.warn('SIOLIB -> Invalid _map_volume invoke')
-            raise TypeError(
-                'sdc_guid must be specified or map_all must be True')
-        else:
-            LOG.info(
-                'SIOLIB -> Using ScaleIO SDC client GUID %s for map operation.'
-                % sdc_guid)
-
-        multi_map = str(map_all).lower()
+        multi_map = str(allow_multi_map).lower()
         params = {'guid': sdc_guid, 'allowMultipleMappings': multi_map}
 
-        LOG.debug('SIOLIB -> map volume params=%r' % params)
         r_uri = '/api/instances/Volume::' + volume_id + '/action/addMappedSdc'
         req = self._post(r_uri, params=params)
         if req.status_code == 200:  # success
-            LOG.info('SIOLIB -> Mapped volume %s successfully' % volume_id)
+            LOG.debug('Mapped volume %s successfully', volume_id)
         elif req.json().get('errorCode') == VOLUME_ALREADY_MAPPED_ERROR:
-            LOG.warn('SIOLIB -> Volume already mapped: %s' %
-                     (req.json().get('message')))
+            LOG.warn('Volume already mapped: %s', (req.json().get('message')))
             raise VolumeAlreadyMapped("Volume '%s' is already mapped: %s"
                                       % (volume_id, req.json().get('message')))
         else:
-            LOG.error('SIOLIB -> Error mapping volume: %s' %
-                      (req.json().get('message')))
             raise Error("Error mapping volume '%s': %s"
                         % (volume_id, req.json().get('message')))
 
@@ -426,15 +404,11 @@ class ScaleIO(object):
         r_uri = '/api/instances/Volume::' + volume_id
         req = self._get(r_uri)
         if req.status_code == 200:  # success
-            LOG.info(
-                'SIOLIB --> Retrieved volume object %s successfully'
-                % volume_id)
+            LOG.debug('Retrieved volume object %s successfully', volume_id)
             volume_obj = _ScaleIOVolume(req.json())
         elif req.json().get('errorCode') == VOLUME_NOT_FOUND_ERROR:
             raise VolumeNotFound('Volume %s is not found' % volume_id)
         else:
-            LOG.error('SIOLIB -> Error retrieving volume object: %s' %
-                      (req.json().get('message')))
             raise Error("Error retrieving volume '%s': %s"
                         % (volume_id, req.json().get('message')))
 
@@ -458,14 +432,11 @@ class ScaleIO(object):
         req = self._get(r_uri)
         if req.status_code == 200:
             volume_id = req.json()
-            LOG.info('SIOLIB -> Retrieved volume id %s successfully' %
-                     volume_id)
+            LOG.debug('Retrieved volume id %s successfully', volume_id)
             return volume_id
         elif req.json().get('errorCode') == RESOURCE_NOT_FOUND_ERROR:
             raise VolumeNotFound("Volume name '%s' is not found" % volume_name)
         else:
-            LOG.error('SIOLIB -> Error retreiving volume id: %s' %
-                      (req.json().get('message')))
             raise Error("Error resolving volume name '%s' to id: %s"
                         % (volume_name, req.json().get('message')))
 
@@ -553,18 +524,15 @@ class ScaleIO(object):
                   'volumeType': self._get_provisiontype(provisioning_type),
                   'storagePoolId': sp_id}
 
-        LOG.debug('SIOLIB -> creating volume params=%r' % params)
-
         r_uri = '/api/types/Volume/instances'
         req = self._post(r_uri, params=params)
-        LOG.debug('SIOLIB -> request to create volume returned %s' % req)
         if req.status_code == 200:
             volume_id = req.json().get('id')
-            LOG.info('SIOLIB -> Created volume %s successfully' % volume_id)
+            LOG.debug('Created volume %s successfully', volume_id)
         elif req.json().get('errorCode') == VOLUME_ALREADY_EXISTS:
             raise VolumeExists("Volume name '%s' already exists" % volume_name)
         else:
-            raise Error("Error creating volume '%s': %s "
+            raise Error("Error creating volume '%s': %s"
                         % (volume_name, req.json().get('message')))
 
         return volume_id, volume_name
@@ -604,11 +572,10 @@ class ScaleIO(object):
 
         params = {'removeMode': remove_mode}
 
-        LOG.debug('SIOLIB -> removing volume params=%r' % params)
-
         if unmap_on_delete:
-            LOG.info('SIOLIB -> Unmap before delete flag True, attempting '
-                     'to unmap volume from all sdcs before deletion')
+            LOG.debug('Unmap before delete flag True, attempting '
+                      'to unmap volume %s from all sdcs before deletion',
+                      volume_id)
             try:
                 self._unmap_volume(volume_id, unmap_all=True)
             except VolumeNotMapped:
@@ -617,10 +584,10 @@ class ScaleIO(object):
         r_uri = '/api/instances/Volume::' + volume_id + '/action/removeVolume'
         req = self._post(r_uri, params=params)
         if req.status_code == 200:
-            LOG.info('SIOLIB -> Removed volume %s successfully' % volume_id)
+            LOG.debug('Removed volume %s successfully', volume_id)
         elif req.json().get('errorCode') == VOLUME_NOT_FOUND_ERROR:
             if not force_delete:
-                LOG.info('SIOLIB -> Error removing volume: %s' %
+                LOG.warn('Error removing volume %s: %s', volume_id,
                          (req.json().get('message')))
                 raise VolumeNotFound("Volume '%s' is not found" % volume_id)
         else:
@@ -646,14 +613,13 @@ class ScaleIO(object):
             volume_size_gb, utilities.UnitSize.GBYTE, utilities.UnitSize.GBYTE)
         params = {'sizeInGB': str(volume_size_gb)}
 
-        LOG.debug('SIOLIB -> extend volume params=%r' % params)
         r_uri = '/api/instances/Volume::' + volume_id + '/action/setVolumeSize'
         req = self._post(r_uri, params=params)
         if req.status_code == 200:
-            LOG.info('SIOLIB -> Extended volume size %s successfully new size '
-                     'is %s GB' % (volume_id, volume_size_gb))
+            LOG.debug('Extended volume size %s successfully new size '
+                     'is %s GB', volume_id, volume_size_gb)
         elif req.json().get('errorCode') == VOLUME_CANNOT_EXTEND:
-            LOG.error('SIOLIB -> Volume extend error: %s' %
+            LOG.error('Volume %s extend error: %s', volume_id,
                       (req.json().get('message')))
             raise SizeTooSmall(
                 "Required size %s GB for volume '%s' is too small: %s"
@@ -685,7 +651,6 @@ class ScaleIO(object):
             'snapshotDefs': [{'volumeId': volume_id,
                               'snapshotName': snapshot_name}]}
 
-        LOG.debug('SIOLIB -> snapshot volume params=%r' % params)
         r_uri = '/api/instances/System/action/snapshotVolumes'
         req = self._post(r_uri, params=params)
         if req.status_code == 200:
@@ -756,18 +721,15 @@ class ScaleIO(object):
 
         params = {'newName': new_volume_name}
 
-        LOG.debug('SIOLIB -> rename volume params=%r' % params)
         r_uri = '/api/instances/Volume::' + volume_id + '/action/setVolumeName'
         req = self._post(r_uri, params=params)
         if req.status_code == 200:  # success
-            LOG.info('SIOLIB -> Renamed volume %s successfully' % volume_id)
+            LOG.debug('Renamed volume %s successfully' % volume_id)
         elif req.json().get('errorCode') == VOLUME_ALREADY_EXISTS:
             raise VolumeExists(
                 "Volume name '%s' already exists, cannot rename '%s'"
                 % (new_volume_name, volume_id))
         else:
-            LOG.error('SIOLIB -> Error renaming volume: %s' %
-                      (req.json().get('message')))
             raise Error(
                 "Error renaming volume '%s' to '%s': %s"
                 % (volume_id, new_volume_name, req.json().get('message')))
@@ -879,10 +841,8 @@ class ScaleIO(object):
         if req.status_code == 200:
             pool_id = req.json()
         else:
-            LOG.error('SIOLIB -> Pool %s not found: %s' %
-                      (storage_pool, req.json().get('message')))
             raise LookupError(
-                'SIOLIB -> Error retrieving Pool ID: %s'
+                'Error retrieving Pool ID: %s'
                 % (req.json().get('message')))
 
         return pool_id
@@ -893,8 +853,6 @@ class ScaleIO(object):
         r_uri = '/api/types/Volume/instances'
         req = self._get(r_uri)
         if req.status_code != 200:
-            LOG.error('SIOLIB -> Error listing volumes: %s' %
-                      (req.json().get('message')))
             raise Error('Error listing volumes: %s' %
                         (req.json().get('message')))
 

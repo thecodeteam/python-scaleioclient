@@ -42,10 +42,7 @@ except:
 
 LOG = logging.getLogger(__name__)
 
-# script scaleio (as of v1.30) constants
 API_LOGIN = 'api/login'
-API_GW_LOGIN = 'api/gatewayLogin'
-REQ_TYPE = {'gw_request': API_GW_LOGIN, 'api_request': API_LOGIN}
 
 GW_REQ_TIMEOUT = 30.0
 GW_REQ_RETRIES = 4
@@ -74,12 +71,15 @@ def basicauth(func):
 
         if not token.valid():  # token has expired get a new one
             # function name is uri endpoint
-            r_uri = REQ_TYPE[func.__name__]
+            r_uri = API_LOGIN
             http_resp = request(op=HttpAction.GET, addr=addr,
                                 uri=r_uri, auth=httpauth)
+            if http_resp.status_code != 200:
+                raise RuntimeError(
+                    'Could not authenticate on ScaleIO with: [%s] %s'
+                    % (http_resp.status_code, http_resp.json().get('message')))
             token.token = http_resp.text
-            logging.warn('SIOLIB: (basicauth) New ScaleIO gateway token={0}'
-                         .format(http_resp.text))
+            LOG.debug('Token acquired')
 
         kwargs['token'] = token
         # call function/method this decorator wraps
@@ -107,23 +107,18 @@ def api_request(**kwargs):
     server_authtoken = kwargs.get('token')
     username, _ = kwargs.get('auth')
     auth = (username, server_authtoken.token)
-    start_time = time.time()
 
     req = request(op=kwargs.get('op'), addr=kwargs.get('host'),
                   uri=kwargs.get('uri'), auth=auth,
                   data=kwargs.get('data', {}))
 
     if req.status_code == 401:
+        LOG.warn('Expired token, trying to re-new and re-run')
         server_authtoken.valid(force_expire=True)
         api_request(**kwargs)
         req = request(op=kwargs.get('op'), addr=kwargs.get('host'),
                       uri=kwargs.get('uri'), auth=auth,
                       data=kwargs.get('data', {}))
-
-    elapsed = time.time() - start_time
-    # FIXME: set to debug after deployed and tested in a dev environment
-    LOG.debug('SIOLIB: (api_request) Response Code == {0}, elapsed=={1}'
-              .format(req.status_code, elapsed))
 
     return req
 
@@ -140,8 +135,6 @@ def request(op, addr, uri, data=None, headers=None, auth=None):
     :return: HTTP response Object
     """
 
-    status_code = 0  # default status code
-    reason = None  # default reason
     u_prefix = 'https://'  # default to secure https
     headers = headers or {'Content-Type': 'application/json'}
 
@@ -162,43 +155,22 @@ def request(op, addr, uri, data=None, headers=None, auth=None):
 
     http_func = getattr(session, op_value)  # get request method
 
-    try:
-        if op_value in ('put', 'post', 'patch'):
-            http_resp = http_func(
-                r_url, auth=http_auth, data=json.dumps(data), verify=False,
-                timeout=GW_REQ_TIMEOUT)
-        else:
-            http_resp = http_func(r_url, auth=http_auth, verify=False,
-                                  timeout=GW_REQ_TIMEOUT)
-        status_code = http_resp.status_code
-        reason = http_resp.reason
-    except requests.Timeout as err:
-        logging.error(
-            'Error: HTTP - {0} request to {1} failed'.format(repr(err), r_url))
-        raise RuntimeError(
-            'httpStatusCode = {0}, reason = {1}, request timed out!'
-            .format(status_code, reason))
-    except requests.ConnectionError as err:
-        logging.error(
-            'Error: HTTP - {0} request to {1} failed'.format(repr(err), r_url))
-        raise RuntimeError(
-            'httpStatusCode = {0}, reason = {1}, check connection!'
-            .format(status_code, reason))
-    except requests.HTTPError as err:
-        logging.error(
-            'Error: HTTP - {0} request to {1} failed'.format(repr(err), r_url))
-        raise RuntimeError(
-            'httpStatusCode = {0}, reason = {1}, check rest gateway!'
-            .format(status_code, reason))
-    except requests.RequestException as err:
-        logging.error(
-            'Error: HTTP - {0} request to {1} failed'.format(repr(err), r_url))
-        raise RuntimeError('httpStatusCode = {0}, reason = {1}, check '
-                           'request payload!'.format(status_code, reason))
+    if op_value in ('put', 'post', 'patch'):
+        data_str = json.dumps(data)
+        LOG.debug('REQ: %s %s %s', op_value, r_url, data_str)
+        http_resp = http_func(
+            r_url, auth=http_auth, data=data_str, verify=False,
+            timeout=GW_REQ_TIMEOUT)
+    else:
+        LOG.debug('REQ: %s %s', op_value, r_url)
+        http_resp = http_func(r_url, auth=http_auth, verify=False,
+                              timeout=GW_REQ_TIMEOUT)
 
-    if http_resp is not None and http_resp.status_code == 401:
-        logging.error('Error: HTTP - Unauthorized request to {0}, '
-                      'please check basic credentials {1}'.format(r_url, auth))
+    resp_text = http_resp.text
+    if uri == API_LOGIN and http_resp.status_code == 200:
+        resp_text = '<new token>'
+    LOG.debug('RESP: [%s] (elapsed %s) %s',
+              http_resp.status_code, http_resp.elapsed, resp_text)
 
     return http_resp
 
@@ -260,14 +232,11 @@ class Token(object):
 
         if _current_time - self._start_time > 60*8 or force_expire:  # 8 min
             self._expired = True
-            self._start_time = time.time()  # reset
 
-        if self._expired:
-            logging.warn('SIOLIB: (token) token expired at={0}'
-                         .format(datetime.datetime.utcnow()))
-            return False  # token invalid
-        else:
-            return True  # token valid
+        if self._expired and self._start_time:
+            LOG.warn('Token expired at %s', datetime.datetime.utcnow())
+
+        return not self._expired
 
     @property
     def token(self):
@@ -286,12 +255,13 @@ class Token(object):
             self._token = value.strip('"')  # strip extra double quotes
         else:
             self._token = value
+        self._start_time = time.time()
+        self._expired = False  # new token set expiry to false
         current_datetime = datetime.datetime.now().utcnow()
         expire_datetime = (datetime.datetime.utcnow() +
                            datetime.timedelta(minutes=8))
-        logging.warn('SIOLIB: (token) token created at at={0} expires in={1}'
-                     .format(current_datetime, expire_datetime))
-        self._expired = False  # new token set expiry to false
+        LOG.warn('Token created at %s expires in %s',
+                 current_datetime, expire_datetime)
 
 
 class HttpAction(enum.Enum):
