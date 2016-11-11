@@ -24,17 +24,19 @@ This module is a stand alone module and may be used by any tool
 to manage ScaleIO volumes.
 """
 
-from scaleio import (ScaleIO,
-                     Error,
-                     VolumeNotFound,
-                     VolumeExists,
-                     VolumeAlreadyMapped,
-                     VolumeNotMapped,
-                     SizeTooSmall,
-                     )
+from scaleio import ScaleIO
+from exceptions import (Error,
+                        Unauthorized,
+                        VolumeNotFound,
+                        VolumeExists,
+                        VolumeAlreadyMapped,
+                        VolumeNotMapped,
+                        SizeTooSmall,
+                        )
 
 __all__ = ['ScaleIO',
            'Error',
+           'Unauthorized',
            'VolumeNotFound',
            'VolumeExists',
            'VolumeAlreadyMapped',

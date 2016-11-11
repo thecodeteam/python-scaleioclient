@@ -31,6 +31,7 @@ import time
 import enum
 import requests
 
+from siolib import exceptions
 from siolib import utilities
 
 try:
@@ -76,7 +77,7 @@ def basicauth(func):
             http_resp = request(op=HttpAction.GET, addr=addr,
                                 uri=r_uri, auth=httpauth)
             if http_resp.status_code != 200:
-                raise RuntimeError(
+                raise exceptions.Unauthorized(
                     'Could not authenticate on ScaleIO with: [%s] %s'
                     % (http_resp.status_code, http_resp.json().get('message')))
             token.token = http_resp.text
