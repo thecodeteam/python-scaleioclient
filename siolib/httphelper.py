@@ -42,10 +42,11 @@ except:
 
 LOG = logging.getLogger(__name__)
 
-API_LOGIN = 'api/login'
+API_LOGIN_PATH = 'api/login'
 
 GW_REQ_TIMEOUT = 30.0
 GW_REQ_RETRIES = 4
+TOKEN_INACTIVITY_LIFETIME = 60 * 8  # 8 min
 
 
 def basicauth(func):
@@ -71,7 +72,7 @@ def basicauth(func):
 
         if not token.valid():  # token has expired get a new one
             # function name is uri endpoint
-            r_uri = API_LOGIN
+            r_uri = API_LOGIN_PATH
             http_resp = request(op=HttpAction.GET, addr=addr,
                                 uri=r_uri, auth=httpauth)
             if http_resp.status_code != 200:
@@ -79,7 +80,7 @@ def basicauth(func):
                     'Could not authenticate on ScaleIO with: [%s] %s'
                     % (http_resp.status_code, http_resp.json().get('message')))
             token.token = http_resp.text
-            LOG.debug('Token acquired')
+            LOG.debug('Token %x acquired', id(token.token))
 
         kwargs['token'] = token
         # call function/method this decorator wraps
@@ -113,8 +114,11 @@ def api_request(**kwargs):
                   data=kwargs.get('data', {}))
 
     if req.status_code == 401:
-        LOG.warn('Expired token, trying to re-new and re-run')
-        server_authtoken.valid(force_expire=True)
+        LOG.info('Auth error [%s] %s occured with request of %s on %s with '
+                 'token %s. Trying to re-new the token and re-run the request',
+                 req.status_code, req.json().get('message'),
+                 kwargs.get('uri'), kwargs.get('host'), id(server_authtoken))
+        server_authtoken.expire()
         api_request(**kwargs)
         req = request(op=kwargs.get('op'), addr=kwargs.get('host'),
                       uri=kwargs.get('uri'), auth=auth,
@@ -167,7 +171,7 @@ def request(op, addr, uri, data=None, headers=None, auth=None):
                               timeout=GW_REQ_TIMEOUT)
 
     resp_text = http_resp.text
-    if uri == API_LOGIN and http_resp.status_code == 200:
+    if uri == API_LOGIN_PATH and http_resp.status_code == 200:
         resp_text = '<new token>'
     LOG.debug('RESP: [%s] (elapsed %s) %s',
               http_resp.status_code, http_resp.elapsed, resp_text)
@@ -206,8 +210,6 @@ class Token(object):
     authentication
     """
 
-    __metaclass__ = Singleton  # this class behaves like a singleton
-
     def __init__(self, http_token=None):
         """
         Create a Token instance that will be used to perform basic
@@ -218,25 +220,27 @@ class Token(object):
         """
 
         self._start_time = 0  # record when we created the token
-        self._expired = False
-        if not http_token:  # if not seeded assume expired
-            self._expired = True
         self._token = http_token
+        if self._token:
+            self._start_time = time.time()
+        self._expired = not self._token
+        LOG.debug('Initialize new %x token', id(self))
 
-    def valid(self, force_expire=False):
-        """
-        Token property getter
-        """
+    def valid(self):
+        if self._expired:
+            return False
 
-        _current_time = time.time()
-
-        if _current_time - self._start_time > 60*8 or force_expire:  # 8 min
+        if time.time() - self._start_time > TOKEN_INACTIVITY_LIFETIME:
             self._expired = True
-
-        if self._expired and self._start_time:
-            LOG.warn('Token expired at %s', datetime.datetime.utcnow())
+            if self._start_time:
+                LOG.debug('Token %x is expired at %s',
+                          id(self), datetime.datetime.utcnow())
 
         return not self._expired
+
+    def expire(self):
+        self._expired = True
+        LOG.debug('Token %s is forcedly expired', id(self))
 
     @property
     def token(self):
@@ -260,8 +264,29 @@ class Token(object):
         current_datetime = datetime.datetime.now().utcnow()
         expire_datetime = (datetime.datetime.utcnow() +
                            datetime.timedelta(minutes=8))
-        LOG.warn('Token created at %s expires in %s',
-                 current_datetime, expire_datetime)
+        LOG.debug('Token %s is set at %s, expires at %s',
+                  id(self), current_datetime, expire_datetime)
+
+
+class TokenFactory(object):
+
+    __metaclass__ = Singleton  # this class behaves like a singleton
+
+    def __init__(self):
+        self._tokens = {}
+
+    def get_token(self, addr, auth):
+        addr_str = '%s:%s' % addr
+        auth_str = '%s:%s' % auth
+        token_key = '%s@%s' % (auth_str, addr_str)
+        if token_key not in self._tokens:
+            LOG.debug('Creating new token for %s@%s:%s',
+                      auth[0], addr[0], addr[1])
+            self._tokens[token_key] = Token()
+        token = self._token[token_key]
+        LOG.debug('Use %x token for %s@s:%s',
+                  id(token), auth[0], addr[0], addr[1])
+        return token
 
 
 class HttpAction(enum.Enum):

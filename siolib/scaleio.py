@@ -189,7 +189,8 @@ class ScaleIO(object):
 
         self.host_addr = (rest_server_ip, str(rest_server_port))
         self.auth = (rest_server_username, rest_server_password)
-        self.server_authtoken = httphelper.Token()
+        self.server_authtoken = httphelper.TokenFactory().get_token(
+            self.host_addr, self.auth)
 
         # set the volume type thick or thin provisioned
         # Check if we will be using a certificate
