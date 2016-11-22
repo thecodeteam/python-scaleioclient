@@ -25,7 +25,7 @@ def read(fname):
 
 setuptools.setup(
     name='siolib',
-    version='2.0.0.dev2',
+    version='2.0.0.dev3',
     description='ScaleIO API base library',
     license='ASL 2.0',
     author='Cloudscaling (EMC)',
