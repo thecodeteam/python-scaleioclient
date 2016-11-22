@@ -284,7 +284,7 @@ class TokenFactory(object):
             LOG.debug('Creating new token for %s@%s:%s',
                       auth[0], addr[0], addr[1])
             self._tokens[token_key] = Token()
-        token = self._token[token_key]
+        token = self._tokens[token_key]
         LOG.debug('Use %x token for %s@s:%s',
                   id(token), auth[0], addr[0], addr[1])
         return token
