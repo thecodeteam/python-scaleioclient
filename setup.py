@@ -15,26 +15,29 @@
 
 """ Python distutils setup for siolib distribution """
 
+import codecs
 import os
 import setuptools
 
 
 def read(fname):
-    return open(os.path.join(os.path.dirname(__file__), fname)).read()
+    here = os.path.dirname(__file__)
+    with codecs.open(os.path.join(here, fname), encoding='utf-8') as f:
+        return f.read()
 
 
 setuptools.setup(
     name='siolib',
-    version='2.0.0.dev3',
+    version='2.0.0b1',
     description='ScaleIO API base library',
+    url='https://github.com/codedellemc/python-scaleioclient',
     license='ASL 2.0',
-    author='Cloudscaling (EMC)',
-    author_email='openstack@cloudscaling.com',
-    long_description=read('README.md'),
+    author='Cloudscaling (DellEMC)',
+    long_description=read('README.rst'),
     packages=['siolib'],
     classifiers=[
         # Reference: http://pypi.python.org/pypi?%3Aaction=list_classifiers
-        'Development Status :: 2 - Pre-Alpha',
+        'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
