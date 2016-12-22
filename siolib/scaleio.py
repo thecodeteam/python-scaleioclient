@@ -975,25 +975,23 @@ class ScaleIO(object):
 
         # FIXME: Redo all of this must be a better and more efficient way
         r_uri = "/api/types/StoragePool/instances/action/querySelectedStatistics"
-        r_uri2 = "/api/types/ProtectionDomain/instances/action/querySelectedStatistics"
-        params = {"ids": [sp_id], "properties": ["capacityInUseInKb", "capacityLimitInKb"]}
-        params2 = {"ids": [self.pd_id ], "properties": ["numOfSds"]}
+        params = {"ids": [sp_id],
+                  "properties": ["capacityAvailableForVolumeAllocationInKb",
+                                 "capacityLimitInKb", "spareCapacityInKb"]}
         req = api_request(op=HttpAction.POST, host=self.host_addr,
                           uri=r_uri, data=params, auth=self.auth,
-                          token=self.server_authtoken)
-        req2 = api_request(op=HttpAction.POST, host=self.host_addr,
-                          uri=r_uri2, data=params2, auth=self.auth,
                           token=self.server_authtoken)
 
         # FIXME: Redo all of this must be a better and more efficient way
         if req.status_code == 200:
-            sds_count = req2.json().get(self.pd_id).get('numOfSds')
             # Total capacity for volumes in a given pool
-            total_kb = req.json().get(sp_id).get('capacityLimitInKb') / sds_count
-            # Used capacity divide by 2
-            used_kb = req.json().get(sp_id).get('capacityInUseInKb')
-            # Calculate the free capacity for the storage pool
-            free_kb = int(total_kb) - int(used_kb)
+            # Divide by two because ScaleIO creates a copy for each volume
+            total_kb = (req.json().get(sp_id).get('capacityLimitInKb') -
+                        req.json().get(sp_id).get('spareCapacityInKb')) / 2
+            # Free capacity for the storage pool
+            free_kb = req.json().get(sp_id).get('capacityAvailableForVolumeAllocationInKb')
+            # Calculate used capacity
+            used_kb = total_kb - free_kb
             # convert to bytes
             used_bytes = used_kb * 1024
             total_bytes = total_kb * 1024
