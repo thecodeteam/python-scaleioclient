@@ -742,43 +742,33 @@ class ScaleIO(object):
         total_bytes = 0
         free_bytes = 0
 
-        # FIXME: Redo all of this must be a better and more efficient way
-        # get protection domain id for request store this for the duration of
-        # the object
         pd_id = self._get_pdid(protection_domain)
         sp_id = self._get_spid(storage_pool, pd_id)
 
-        # FIXME: Redo all of this must be a better and more efficient way
         r_uri = ('/api/types/StoragePool/instances/action/'
                  'querySelectedStatistics')
-        r_uri2 = ('/api/types/ProtectionDomain/instances/action/'
-                  'querySelectedStatistics')
         params = {'ids': [sp_id],
-                  'properties': ['capacityInUseInKb', 'capacityLimitInKb']}
-        params2 = {'ids': [pd_id], 'properties': ['numOfSds']}
+                  'properties': ['capacityAvailableForVolumeAllocationInKb',
+                                 'capacityLimitInKb', 'spareCapacityInKb']}
         req = self._post(r_uri, params=params)
-        req2 = self._post(r_uri2, params=params2)
 
-        # FIXME: Redo all of this must be a better and more efficient way
-        if req.status_code == 200 and req2.status_code == 200:
-            sds_count = req2.json().get(pd_id).get('numOfSds')
-            # Total capacity for volumes in a given pool
-            total_kb = req.json().get(sp_id).get(
-                'capacityLimitInKb') / sds_count
-            # Used capacity divide by 2
-            used_kb = req.json().get(sp_id).get('capacityInUseInKb')
-            # Calculate the free capacity for the storage pool
-            free_kb = int(total_kb) - int(used_kb)
+        if req.status_code == 200:
+            stat = req.json()[sp_id]
+            # Divide by two because ScaleIO creates a copy for each volume
+            total_kb = (stat['capacityLimitInKb'] -
+                        stat['spareCapacityInKb']) / 2
+            # Free capacity for the storage pool
+            free_kb = stat['capacityAvailableForVolumeAllocationInKb']
+            # Calculate used capacity
+            used_kb = total_kb - free_kb
             # convert to bytes
             used_bytes = used_kb * 1024
             total_bytes = total_kb * 1024
             free_bytes = free_kb * 1024
         else:
-            msg = (req.json().get('message')
-                   if req.status_code != 200
-                   else req2.json().get('message'))
             raise exceptions.Error(
-                'Error retrieving storage pool statistics: %s' % msg)
+                'Error retrieving storage pool statistics: %s'
+                % req.json().get('message'))
 
         return (used_bytes, total_bytes, free_bytes)
 
