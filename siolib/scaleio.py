@@ -822,7 +822,13 @@ class ScaleIO(object):
 
         return pool_id
 
-    def list_volume_infos(self):
+    def list_volume_infos(self, filters=None):
+
+        if isinstance(filters, dict) and 'name_prefix' in filters:
+            name_prefix = filters['name_prefix']
+            filter_func = lambda i: i['name'].startswith(name_prefix)
+        else:
+            filter_func = lambda i: True
 
         infos = []
         r_uri = '/api/types/Volume/instances'
@@ -833,7 +839,8 @@ class ScaleIO(object):
 
         volume_objects = req.json()
         for volume in volume_objects:
-            infos.append({'id': volume['id'],
-                          'name': volume['name']})
+            if filter_func(volume):
+                infos.append({'id': volume['id'],
+                              'name': volume['name']})
 
         return infos
