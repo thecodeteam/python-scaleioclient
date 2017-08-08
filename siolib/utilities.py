@@ -22,6 +22,7 @@
 import enum
 import math
 import re
+from six.moves.urllib.parse import quote
 
 
 class UnitSize(enum.Enum):
@@ -45,7 +46,6 @@ def encode_string(value, double=False):
     :return:
     """
 
-    from urllib import quote
     # Replace special characters in string using the %xx escape
     encoded_str = quote(value, '')
     if double:  # double encode

@@ -22,6 +22,7 @@ ScaleIO API library
 import logging
 import os.path
 import time
+import six
 
 from siolib import exceptions
 from siolib import httphelper
@@ -77,7 +78,7 @@ class _ScaleIOVolume(object):
 
         self.full_device_path = None
         # populate Volume object based on JSON properties
-        for k, v in vol_json.iteritems():
+        for k, v in vol_json.items():
             self.__setattr__(k, v)  # set class attribs based on json
 
     def volume_partitions(self):
@@ -449,7 +450,7 @@ class ScaleIO(object):
         """
         Return the volume size in kb
         :param volume_id_or_name: ScaleIO volume ID or volume name
-        :return: Integer containing voluem size in kilobytes
+        :return: Integer containing volume size in kilobytes
         """
 
         volume_object = self._volume(volume_id_or_name)
@@ -547,12 +548,20 @@ class ScaleIO(object):
 
         volume_id = self._validate_volume_id(volume_id_or_name)
 
-        # if no other option set True assume only me
-        if not any((include_descendents, only_descendents, vtree)):
-            remove_mode = 'ONLY_ME'
-        else:
-            # TODO: Add bit masking and testing to see what option selected
-            remove_mode = 'ONLY_ME'
+        # the removeMode options are mutually exclusive
+        if [include_descendents, only_descendents, vtree].count(True) > 1:
+            raise ValueError(
+                'Only one removeMode flag can be specified '
+                '(include_descendants, only_descendants, vtree)')
+
+        # default removeMode is ONLY_ME
+        remove_mode = 'ONLY_ME'
+        if (include_descendents):
+            remove_mode = 'INCLUDING_DESCENDANTS'
+        if (only_descendents):
+            remove_mode = 'DESCENDANTS_ONLY'
+        if (vtree):
+            remove_mode = 'WHOLE_VTREE'
 
         params = {'removeMode': remove_mode}
 
@@ -683,6 +692,9 @@ class ScaleIO(object):
         """
         volume_object = self._volume(volume_id_or_name)
 
+        if volume_object.mappedSdcInfo is None:
+            return False
+
         params = {'ids': [si['sdcId'] for si in volume_object.mappedSdcInfo]}
         r_uri = '/api/types/Sdc/instances/action/queryBySelectedIds'
         req = self._post(r_uri, params=params)
@@ -800,6 +812,12 @@ class ScaleIO(object):
         return (used_kb, total_kb, free_kb)
 
     def get_pool_id(self, protection_domain, storage_pool):
+        """
+        Returns the id of a specified storage pool.
+        :param: protection_domain. Name of the protection domain to query
+        :param: storage_pool. Name of the storage pool within the protection domain
+        :return: id of the specified storage pool
+        """
 
         if not protection_domain:
             raise ValueError(
@@ -822,7 +840,21 @@ class ScaleIO(object):
 
         return pool_id
 
+    def get_domain_id(self, protection_domain):
+        """
+        Returns the id of a specified protection domain.
+        :param: protection_domain. Name of the protection domain to query
+        :return: id of the specified protection domain
+        """
+
+        return self._get_pdid(protection_domain)
+
     def list_volume_infos(self, filters=None):
+        """
+        Returns list of volumes in the system.
+        Each item in the list will include the name and id of the volume
+        :return: list of volume dictionaries
+        """
 
         if isinstance(filters, dict) and 'name_prefix' in filters:
             name_prefix = filters['name_prefix']
@@ -844,3 +876,70 @@ class ScaleIO(object):
                               'name': volume['name']})
 
         return infos
+
+    def list_protection_domain_infos(self):
+        """
+        Returns list of protection domains in the system.
+        Each item in the list will include the name and id of the protection domain
+        :return: list of protection domain dictionaries, containing 'name' and 'id'
+        """
+
+        infos = []
+        r_uri = '/api/types/ProtectionDomain/instances'
+        req = self._get(r_uri)
+        if req.status_code != 200:
+            raise exceptions.Error('Error listing protection domains: %s'
+                                   % req.json().get('message'))
+
+        pd_objects = req.json()
+        for pd in pd_objects:
+            infos.append({'id': pd['id'],
+                          'name': pd['name']})
+
+        return infos
+
+    def list_storage_pool_infos(self, protection_domain):
+        """
+        Returns list of storage pools within a protection domain.
+        Each item in the list will include the name and id of the storage pool
+        :param: protection_domain. Name of the protection domain to query for pools
+        :return: list of storage pool dictionaries, containing 'name' and 'id'
+        """
+
+        if not protection_domain:
+            raise ValueError(
+                'Invalid protection_domain parameter, protection_domain=%s'
+                % protection_domain)
+
+        pd_id = self._get_pdid(protection_domain)
+        infos = []
+        r_uri = '/api/instances/ProtectionDomain::' + pd_id + '/relationships/StoragePool'
+        req = self._get(r_uri)
+        if req.status_code != 200:
+            raise exceptions.Error('Error listing storage pools: %s'
+                                   % req.json().get('message'))
+
+        sp_objects = req.json()
+        for sp in sp_objects:
+            infos.append({'id': sp['id'],
+                          'name': sp['name']})
+
+        return infos
+
+    def get_scaleio_api_version(self):
+        """
+        Returns ScaleIO REST API version.
+        This may or may not match the version of ScaleIO, but
+        will be in the form of n.n.n, matching the regex: '\d+\.\d+\.\d+'
+        :return: String containing version number
+        """
+
+        r_uri = '/api/version'
+        req = self._get(r_uri)
+        if req.status_code != 200:
+            raise exceptions.Error('Error retrieving api version information: %s'
+                                   % req.json().get('message'))
+
+        version = req.text.replace('\"', '')
+
+        return version

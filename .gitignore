@@ -7,3 +7,5 @@ siolib.egg-info
 .project
 .pydevproject
 .settings/
+.idea/
+.noseids
