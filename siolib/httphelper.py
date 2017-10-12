@@ -112,6 +112,7 @@ def api_request(**kwargs):
 
     req = request(op=kwargs.get('op'), addr=kwargs.get('host'),
                   uri=kwargs.get('uri'), auth=auth,
+                  verify=kwargs.get('verify'),
                   data=kwargs.get('data', {}))
 
     if req.status_code == 401:
@@ -128,7 +129,7 @@ def api_request(**kwargs):
     return req
 
 
-def request(op, addr, uri, data=None, headers=None, auth=None):
+def request(op, addr, uri, data=None, headers=None, auth=None, verify=False):
     """
     Perform HTTP request
     :param op: HTTPACTION verb GET, PUT, POST, DELETE
@@ -164,11 +165,11 @@ def request(op, addr, uri, data=None, headers=None, auth=None):
         data_str = json.dumps(data)
         LOG.debug('REQ: %s %s %s', op_value, r_url, data_str)
         http_resp = http_func(
-            r_url, auth=http_auth, data=data_str, verify=False,
+            r_url, auth=http_auth, data=data_str, verify=verify,
             timeout=GW_REQ_TIMEOUT)
     else:
         LOG.debug('REQ: %s %s', op_value, r_url)
-        http_resp = http_func(r_url, auth=http_auth, verify=False,
+        http_resp = http_func(r_url, auth=http_auth, verify=verify,
                               timeout=GW_REQ_TIMEOUT)
 
     resp_text = http_resp.text

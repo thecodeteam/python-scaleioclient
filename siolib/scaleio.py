@@ -164,6 +164,8 @@ class ScaleIO(object):
         :return: Nothing
         """
 
+        self.verify_cert = False
+        self.cert_path = None
         self.host_addr = (rest_server_ip, str(rest_server_port))
         self.auth = (rest_server_username, rest_server_password)
         self.server_authtoken = httphelper.TokenFactory().get_token(
@@ -204,6 +206,16 @@ class ScaleIO(object):
         if isabs(server_certificate_path):
             self.verify_cert = True
             self.cert_path = server_certificate_path
+
+    def _get_certificate(self):
+        """
+        Get certificate path for ScaleIO REST gateway calls
+        :return: path to certificate
+        """
+
+        if self.verify_cert:
+            return self.cert_path
+        return False
 
     def _validate_volume_id(self, volume_id_or_name):
         """
@@ -250,12 +262,14 @@ class ScaleIO(object):
     def _get(self, r_uri):
         return httphelper.api_request(
             uri=r_uri, data=None, op=httphelper.HttpAction.GET,
-            host=self.host_addr, auth=self.auth, token=self.server_authtoken)
+            host=self.host_addr, auth=self.auth, token=self.server_authtoken,
+            verify=self._get_certificate())
 
     def _post(self, r_uri, params=None):
         return httphelper.api_request(
             uri=r_uri, data=params, op=httphelper.HttpAction.POST,
-            host=self.host_addr, auth=self.auth, token=self.server_authtoken)
+            host=self.host_addr, auth=self.auth, token=self.server_authtoken,
+            verify=self._get_certificate())
 
     def _get_pdid(self, protection_domain):
         """
@@ -943,3 +957,92 @@ class ScaleIO(object):
         version = req.text.replace('\"', '')
 
         return version
+
+    def get_storage_pool_properties(self, protection_domain, storage_pool):
+        """
+        Returns the properties of the specified storage pool.
+        :param: protection_domain. Name of the protection domain
+        :param: storage_pool. Name of the storage pool
+        :return: dict of storage pool properties
+        """
+
+        if not protection_domain:
+            raise ValueError(
+                'Invalid protection_domain parameter, protection_domain=%s'
+                % protection_domain)
+        if not storage_pool:
+            raise ValueError(
+                'Invalid storage_pool parameter, storage_pool=%s'
+                % storage_pool)
+
+        pd_id = self._get_pdid(protection_domain)
+        sp_id = self._get_spid(storage_pool, pd_id)
+        props = []
+        r_uri = '/api/instances/StoragePool::' + sp_id
+        req = self._get(r_uri)
+        if req.status_code != 200:
+            raise exceptions.Error('Error retrieving storage pool props: %s'
+                                   % req.json().get('message'))
+
+        props = req.json()
+
+        return props
+
+    def get_protection_domain_properties(self, protection_domain):
+        """
+        Returns the properties of the specified protection domain.
+        :param: protection_domain. Name of the protection domain
+        :return: dict of protection domain properties
+        """
+
+        if not protection_domain:
+            raise ValueError(
+                'Invalid protection_domain parameter, protection_domain=%s'
+                % protection_domain)
+
+        pd_id = self._get_pdid(protection_domain)
+        props = []
+        r_uri = '/api/instances/ProtectionDomain::' + pd_id
+        req = self._get(r_uri)
+        if req.status_code != 200:
+            raise exceptions.Error('Error retrieving protection domain props: %s'
+                                   % req.json().get('message'))
+
+        props = req.json()
+
+        return props
+
+    def get_storage_pool_statistics(self, protection_domain, storage_pool, props):
+        """
+        Returns the requested statistics on a storage pool.
+        :param: protection_domain. Name of the protection domain
+        :param: storage_pool. Name of the storage pool
+        :param: props. Array of property names to query
+        :return: dict of storage pool properties
+        """
+
+        if not protection_domain:
+            raise ValueError(
+                'Invalid protection_domain parameter, protection_domain=%s'
+                % protection_domain)
+        if not storage_pool:
+            raise ValueError(
+                'Invalid storage_pool parameter, storage_pool=%s'
+                % storage_pool)
+        if not props:
+            raise ValueError('No properties specified to query')
+
+        pd_id = self._get_pdid(protection_domain)
+        sp_id = self._get_spid(storage_pool, pd_id)
+
+        params = {'ids': [sp_id], 'properties': props}
+
+        r_uri = '/api/types/StoragePool/instances/action/querySelectedStatistics'
+        req = self._post(r_uri, params=params)
+        if req.status_code != 200:
+            raise exceptions.Error('Error retrieving storage pool stats: %s'
+                                   % req.json().get('message'))
+
+        stats = req.json()[sp_id]
+
+        return stats

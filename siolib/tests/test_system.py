@@ -50,7 +50,23 @@ class Test_System(BaseTest):
         used , total, free = self.scaleio.systempool_size()
         self.assertEqual(used+free, total)
 
+    def test_protection_domain_props(self):
+        props = self.scaleio.get_protection_domain_properties(self.domain)
+        self.assertEqual(props['id'], self.scaleio.get_domain_id(self.domain))
+
+    def test_storage_pool_props(self):
+        props = self.scaleio.get_storage_pool_properties(self.domain, self.pool)
+        self.assertEqual(props['id'], self.scaleio.get_pool_id(self.domain, self.pool))
+
     def test_version(self):
         version = self.scaleio.get_scaleio_api_version()
         self.assertRegexpMatches(version, "^\d+(\.\d+)*$")
+
+    def test_storage_pool_statistics(self):
+        requested_stats = [
+            "capacityAvailableForVolumeAllocationInKb",
+            "capacityLimitInKb", "spareCapacityInKb",
+            "thickCapacityInUseInKb"]
+        stats = self.scaleio.get_storage_pool_statistics(self.domain, self.pool, requested_stats)
+        self.assertEqual(len(stats), len(requested_stats))
 
