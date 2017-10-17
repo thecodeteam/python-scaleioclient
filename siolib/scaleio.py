@@ -1002,16 +1002,22 @@ class ScaleIO(object):
 
         pd_id = self._get_pdid(protection_domain)
         sp_id = self._get_spid(storage_pool, pd_id)
-        props = []
-        r_uri = '/api/instances/StoragePool::' + sp_id
+        return self.get_storage_pool_properties_from_id(sp_id)
+
+    def get_storage_pool_properties_from_id(self, storage_pool_id):
+        """
+        Returns the properties of the specified storage pool.
+        :param: storage_pool_id. ID of the storage pool
+        :return: dict of storage pool properties
+        """
+
+        r_uri = '/api/instances/StoragePool::' + storage_pool_id
         req = self._get(r_uri)
         if req.status_code != 200:
             raise exceptions.Error('Error retrieving storage pool props: %s'
                                    % req.json().get('message'))
 
-        props = req.json()
-
-        return props
+        return req.json()
 
     def get_protection_domain_properties(self, protection_domain):
         """
@@ -1026,16 +1032,22 @@ class ScaleIO(object):
                 % protection_domain)
 
         pd_id = self._get_pdid(protection_domain)
-        props = []
-        r_uri = '/api/instances/ProtectionDomain::' + pd_id
+        return self.get_protection_domain_properties_from_id(pd_id)
+
+    def get_protection_domain_properties_from_id(self, protection_domain_id):
+        """
+        Returns the properties of the specified protection domain.
+        :param: protection_domain_id. ID of the protection domain
+        :return: dict of protection domain properties
+        """
+
+        r_uri = '/api/instances/ProtectionDomain::' + protection_domain_id
         req = self._get(r_uri)
         if req.status_code != 200:
             raise exceptions.Error('Error retrieving protection domain props: %s'
                                    % req.json().get('message'))
 
-        props = req.json()
-
-        return props
+        return req.json()
 
     def get_volume_properties(self, volume_id_or_name):
         """

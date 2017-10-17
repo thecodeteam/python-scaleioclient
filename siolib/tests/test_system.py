@@ -54,9 +54,19 @@ class Test_System(BaseTest):
         props = self.scaleio.get_protection_domain_properties(self.domain)
         self.assertEqual(props['id'], self.scaleio.get_domain_id(self.domain))
 
+    def test_protection_domain_props_from_id(self):
+        props = self.scaleio.get_protection_domain_properties(self.domain)
+        self.assertEqual(props['name'],
+                         self.scaleio.get_protection_domain_properties_from_id(props['id'])['name'])
+
     def test_storage_pool_props(self):
         props = self.scaleio.get_storage_pool_properties(self.domain, self.pool)
         self.assertEqual(props['id'], self.scaleio.get_pool_id(self.domain, self.pool))
+
+    def test_storage_pool_props_from_id(self):
+        props = self.scaleio.get_storage_pool_properties(self.domain, self.pool)
+        self.assertEqual(props['name'],
+                         self.scaleio.get_storage_pool_properties_from_id(props['id'])['name'])
 
     def test_version(self):
         version = self.scaleio.get_scaleio_api_version()
