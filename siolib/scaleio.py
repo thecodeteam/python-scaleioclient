@@ -675,6 +675,31 @@ class ScaleIO(object):
 
         return snapshot_gid, volume_list
 
+    def snapshot_volume_from_defs(self, snapshot_defs):
+        """
+        Snapshot existing volume(s) from a list of volume/snapshots.
+        Enables the taking of snapshots of multiple existing volumes,
+        up to 31 per volume. The snapshots are thinly provisioned
+        and are extremely quick. Once a snapshot is generated,
+        it becomes a new, unmapped volume in the system.
+        :param snapshot_defs: List of maps of volumeID->snapshot_names
+        :return: List of newly created snapshots
+        """
+
+        if not snapshot_defs:
+            raise ValueError(
+                'Invalid snapshot snapshot_defs parameter, None')
+
+        params = {'snapshotDefs': snapshot_defs}
+
+        r_uri = '/api/instances/System/action/snapshotVolumes'
+        req = self._post(r_uri, params=params)
+        if req.status_code != 200:
+            raise exceptions.Error(
+                "Error making snapshots from: %s" % snapshot_defs)
+
+        return req.json()
+
     def detach_volume(self, volume_id_or_name, sdc_guid=None, unmap_all=False):
         """
         Detach volume from SDC
@@ -977,16 +1002,22 @@ class ScaleIO(object):
 
         pd_id = self._get_pdid(protection_domain)
         sp_id = self._get_spid(storage_pool, pd_id)
-        props = []
-        r_uri = '/api/instances/StoragePool::' + sp_id
+        return self.get_storage_pool_properties_from_id(sp_id)
+
+    def get_storage_pool_properties_from_id(self, storage_pool_id):
+        """
+        Returns the properties of the specified storage pool.
+        :param: storage_pool_id. ID of the storage pool
+        :return: dict of storage pool properties
+        """
+
+        r_uri = '/api/instances/StoragePool::' + storage_pool_id
         req = self._get(r_uri)
         if req.status_code != 200:
             raise exceptions.Error('Error retrieving storage pool props: %s'
                                    % req.json().get('message'))
 
-        props = req.json()
-
-        return props
+        return req.json()
 
     def get_protection_domain_properties(self, protection_domain):
         """
@@ -1001,16 +1032,44 @@ class ScaleIO(object):
                 % protection_domain)
 
         pd_id = self._get_pdid(protection_domain)
-        props = []
-        r_uri = '/api/instances/ProtectionDomain::' + pd_id
+        return self.get_protection_domain_properties_from_id(pd_id)
+
+    def get_protection_domain_properties_from_id(self, protection_domain_id):
+        """
+        Returns the properties of the specified protection domain.
+        :param: protection_domain_id. ID of the protection domain
+        :return: dict of protection domain properties
+        """
+
+        r_uri = '/api/instances/ProtectionDomain::' + protection_domain_id
         req = self._get(r_uri)
         if req.status_code != 200:
             raise exceptions.Error('Error retrieving protection domain props: %s'
                                    % req.json().get('message'))
 
-        props = req.json()
+        return req.json()
 
-        return props
+    def get_volume_properties(self, volume_id_or_name):
+        """
+        Returns properties of a ScaleIO volume
+        :param volume_id_or_name: ScaleIO volume ID or volume name
+        :return: Dict containing volume properties
+        """
+
+        volume_id = self._validate_volume_id(volume_id_or_name)
+
+        r_uri = '/api/instances/Volume::' + volume_id
+        req = self._get(r_uri)
+        if req.status_code == 200:  # success
+            LOG.debug('Retrieved volume object %s successfully', volume_id)
+        elif req.json().get('errorCode') == VOLUME_NOT_FOUND_ERROR:
+            raise exceptions.VolumeNotFound('Volume %s is not found'
+                                            % volume_id)
+        else:
+            raise exceptions.Error("Error retrieving volume '%s': %s"
+                                   % (volume_id, req.json().get('message')))
+
+        return req.json()
 
     def get_storage_pool_statistics(self, protection_domain, storage_pool, props):
         """
