@@ -98,6 +98,42 @@ class Test_Volume(BaseTest):
                           self.scaleio.get_volumename,
                           snapshot_name)
 
+    def test_snapshot_defs(self):
+        volume = []
+        snapshot = []
+        num_volumes = 5
+
+        # create the volumes
+        for i in range(0, num_volumes):
+            vol_name = self._random_name()
+            # create the volumes
+            vol_id, name = self.scaleio.create_volume(vol_name,
+                                                      self.domain,
+                                                      self.pool,
+                                                      provisioning_type='thin')
+            self.assertEqual(name, vol_name)
+            volume.append(vol_id)
+            snapshot.append(vol_name + "-snap")
+
+
+        get_scaleio_snapshot_params = lambda src_volume, trg_volume: {
+            'volumeId': src_volume,
+            'snapshotName': trg_volume}
+
+        # build the snapshotDefs
+        snapshot_defs = list(map(get_scaleio_snapshot_params,
+                            volume,
+                            snapshot))
+
+        # snap them
+        response = self.scaleio.snapshot_volume_from_defs(snapshot_defs)
+        self.assertEqual(num_volumes, len(response['volumeIdList']))
+
+        # delete the volumes and snapshots
+        for i in range(0, num_volumes):
+            self.scaleio.delete_volume(volume[i])
+            self.scaleio.delete_volume(snapshot[i])
+
     def test_delete_multiple_modes(self):
         volume_name = self._random_name()
         snapshot_name = self._random_name()
@@ -219,3 +255,24 @@ class Test_Volume(BaseTest):
         self.assertRaises(siolib.VolumeNotFound,
                           self.scaleio.get_volumename,
                           snapshot_name)
+
+    def test_volume_properties(self):
+        volume_name = self._random_name()
+
+        # create the volume
+        vol_id, name = self.scaleio.create_volume(volume_name,
+                                                  self.domain,
+                                                  self.pool,
+                                                  provisioning_type='thin',
+                                                  volume_size_gb=self.initial_vol_size)
+
+        props = self.scaleio.get_volume_properties(volume_name)
+        self.assertEqual(props['id'], vol_id)
+
+        # delete the volume
+        self.scaleio.delete_volume(volume_name)
+        # make sure the volumes does not exist
+        self.assertRaises(siolib.VolumeNotFound,
+                          self.scaleio.get_volumename,
+                          volume_name)
+
